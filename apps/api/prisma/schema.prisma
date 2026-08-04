@@ -1,0 +1,32 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DealSessionStatus {
+  BORRADOR
+  EN_NEGOCIACION
+  ACORDADO
+  CAIDO
+  SUSPENDIDO
+}
+
+model DealSession {
+  id                  String            @id @default(uuid())
+  name                String
+  status              DealSessionStatus @default(BORRADOR)
+  contractGrossAmount Decimal           @db.Decimal(14, 2)
+  companyPct          Decimal           @db.Decimal(5, 2)
+  externalPct         Decimal           @db.Decimal(5, 2)
+  notes               String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([status])
+  @@index([updatedAt])
+  @@map("deal_sessions")
+}
