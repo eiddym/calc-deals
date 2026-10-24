@@ -1,10 +1,12 @@
 import Decimal from 'decimal.js';
 import {
+  CooperativeInvestmentResult,
   DealCalculationInput,
   DealCalculationResult,
   DealNegotiationMode,
   DealPartner,
   DealPartnerResult,
+  ViabilityStatus,
 } from './types';
 
 // Configuración de precisión decimal estricta para cálculos financieros
@@ -336,6 +338,135 @@ export function calculateDeal(input: DealCalculationInput): DealCalculationResul
   const commercialFeesTotal = commissionAmount.plus(titularCompanyAmount);
   const teamNetProfitTotal = totalNetProfitPool;
 
+  // 12. Enfoque Especial: Cooperativa / Inversión Minera Centrada en Capital del Inversionista
+  let coopResult: CooperativeInvestmentResult | undefined = undefined;
+  if (mode === 'COOPERATIVA_INVERSION' || input.cooperativeInvestment) {
+    const ci = input.cooperativeInvestment || {
+      investorCapital: 0,
+      durationMonths: 12,
+      investorSharePct: 70,
+      cooperativeSharePct: 30,
+      operatingCostsEstimated: directCostsTotal.toNumber(),
+      canonComunalPct: input.statutoryDeductions.retentionRatePct || 5,
+      targetInvestorRoiPct: 35,
+      minCooperativeIncome: 0,
+      projectedGrossRevenue: G.toNumber(),
+    };
+
+    const invCap = d(ci.investorCapital || 0);
+    const durMonths = Decimal.max(1, d(ci.durationMonths || 12));
+    const invPct = d(ci.investorSharePct !== undefined ? ci.investorSharePct : 70);
+    const coopPct = d(ci.cooperativeSharePct !== undefined ? ci.cooperativeSharePct : 30);
+
+    const opex = ci.operatingCostsEstimated !== undefined
+      ? d(ci.operatingCostsEstimated)
+      : directCostsTotal.plus(totalPersonnelCost);
+
+    const canonPct = d(ci.canonComunalPct !== undefined ? ci.canonComunalPct : 5);
+
+    const projectedGross = ci.projectedGrossRevenue !== undefined && ci.projectedGrossRevenue > 0
+      ? d(ci.projectedGrossRevenue)
+      : G;
+
+    const canonAmount = projectedGross.mul(canonPct.div(100));
+    const netSurplus = Decimal.max(0, projectedGross.minus(opex).minus(canonAmount));
+
+    const invPayout = netSurplus.mul(invPct.div(100));
+    const invNetProfit = invPayout.minus(invCap);
+    const invRoi = invCap.gt(0) ? invNetProfit.div(invCap).mul(100) : d(0);
+    const invMonthly = durMonths.gt(0) ? invPayout.div(durMonths) : d(0);
+
+    let paybackMonths = d(999);
+    if (invMonthly.gt(0)) {
+      paybackMonths = invCap.div(invMonthly);
+    } else if (invCap.isZero()) {
+      paybackMonths = d(0);
+    }
+
+    const targetRoi = d(ci.targetInvestorRoiPct !== undefined ? ci.targetInvestorRoiPct : 35);
+    let invStatus: ViabilityStatus = 'ROJO';
+    let invStatusMsg = '';
+
+    if (invNetProfit.lt(0)) {
+      invStatus = 'ROJO';
+      invStatusMsg = `Pérdida de capital (-${r2(invNetProfit.abs())} Bs). No recupera la inversión en ${durMonths.toNumber()} meses.`;
+    } else if (invRoi.lt(targetRoi)) {
+      invStatus = 'AMARILLO';
+      invStatusMsg = `Recupera capital en ${r2(paybackMonths)} meses con ROI de ${r2(invRoi)}%, por debajo del objetivo (${r2(targetRoi)}%).`;
+    } else {
+      invStatus = 'VERDE';
+      invStatusMsg = `Excelente retorno: ROI del ${r2(invRoi)}% (supera objetivo de ${r2(targetRoi)}%) con payback en ${r2(paybackMonths)} meses.`;
+    }
+
+    const coopPayout = netSurplus.mul(coopPct.div(100));
+    const coopMonthly = durMonths.gt(0) ? coopPayout.div(durMonths) : d(0);
+    const minCoop = d(ci.minCooperativeIncome || 0);
+
+    let coopStatus: ViabilityStatus = 'ROJO';
+    let coopStatusMsg = '';
+
+    if (coopPayout.lte(0)) {
+      coopStatus = 'ROJO';
+      coopStatusMsg = 'Sin excedente generado para los socios de la cooperativa.';
+    } else if (minCoop.gt(0) && coopPayout.lt(minCoop)) {
+      coopStatus = 'AMARILLO';
+      coopStatusMsg = `Genera ${r2(coopPayout)} Bs (${r2(coopMonthly)} Bs/mes), por debajo del mínimo esperado (${r2(minCoop)} Bs).`;
+    } else {
+      coopStatus = 'VERDE';
+      coopStatusMsg = `Meta cumplida: Genera ${r2(coopPayout)} Bs (${r2(coopMonthly)} Bs/mes) para la cooperativa.`;
+    }
+
+    let overallStatus: ViabilityStatus = 'ROJO';
+    let overallMsg = '';
+    if (invStatus === 'ROJO' || coopStatus === 'ROJO') {
+      overallStatus = 'ROJO';
+      overallMsg = 'Trato Inviable: La producción o los costos actuales no cubren la inversión ni el mínimo operativo.';
+    } else if (invStatus === 'AMARILLO' || coopStatus === 'AMARILLO') {
+      overallStatus = 'AMARILLO';
+      overallMsg = 'Zona de Tensión: Ambas partes tienen retornos positivos pero una está por debajo de sus expectativas.';
+    } else {
+      overallStatus = 'VERDE';
+      overallMsg = 'Zona Verde: Acuerdo equilibrado y rentable para ambas partes. Listo para firma de acta.';
+    }
+
+    const targetInvestorReturn = invCap.mul(d(1).plus(targetRoi.div(100)));
+    const reqSurplusInvestor = invPct.gt(0) ? targetInvestorReturn.div(invPct.div(100)) : d(0);
+    const reqSurplusCoop = coopPct.gt(0) ? minCoop.div(coopPct.div(100)) : d(0);
+    const maxReqSurplus = Decimal.max(reqSurplusInvestor, reqSurplusCoop);
+    const canonFactor = Decimal.max(0.01, d(1).minus(canonPct.div(100)));
+    const breakEvenGross = maxReqSurplus.plus(opex).div(canonFactor);
+
+    coopResult = {
+      investorCapital: r2(invCap),
+      durationMonths: r2(durMonths),
+      investorSharePct: r2(invPct),
+      cooperativeSharePct: r2(coopPct),
+      operatingCostsEstimated: r2(opex),
+      canonComunalPct: r2(canonPct),
+      canonComunalAmount: r2(canonAmount),
+      projectedGrossRevenue: r2(projectedGross),
+      netDistributableSurplus: r2(netSurplus),
+      investorPayout: r2(invPayout),
+      investorNetProfit: r2(invNetProfit),
+      investorRoiPct: r2(invRoi),
+      targetInvestorRoiPct: r2(targetRoi),
+      investorPaybackMonths: r2(paybackMonths),
+      investorMonthlyAverage: r2(invMonthly),
+      investorStatus: invStatus,
+      investorStatusMessage: invStatusMsg,
+      minCooperativeIncome: r2(minCoop),
+      cooperativePayout: r2(coopPayout),
+      cooperativeMonthlyIncome: r2(coopMonthly),
+      cooperativeStatus: coopStatus,
+      cooperativeStatusMessage: coopStatusMsg,
+      overallDealStatus: overallStatus,
+      overallDealMessage: overallMsg,
+      breakEvenRevenueRequired: r2(breakEvenGross),
+      cooperativePayoutAtBreakEven: r2(maxReqSurplus.mul(coopPct.div(100))),
+      investorPayoutAtBreakEven: r2(maxReqSurplus.mul(invPct.div(100))),
+    };
+  }
+
   return {
     contractGrossAmount: r2(G),
     negotiationMode: mode,
@@ -425,5 +556,6 @@ export function calculateDeal(input: DealCalculationInput): DealCalculationResul
         teamNetProfitPct: G.gt(0) ? r2(teamNetProfitTotal.div(G).mul(100)) : 0,
       },
     },
+    cooperativeInvestment: coopResult,
   };
 }

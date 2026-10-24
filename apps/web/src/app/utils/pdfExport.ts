@@ -99,12 +99,24 @@ export async function generateDealPdf(
 
   // 3. TARJETAS DE SÍNTESIS EJECUTIVA (4 HERO NUMBERS)
   const cardWidth = (width - 90 - 30) / 4;
-  const cards = [
-    { title: 'CONTRATO BRUTO', val: fmt(result.contractGrossAmount), color: rgb(0.14, 0.38, 0.92) },
-    { title: 'LIQUIDO EN OBRA', val: fmt(result.immediateDistributablePool), color: rgb(0.06, 0.72, 0.5) },
-    { title: 'RETENCION CIERRE', val: fmt(result.deferredRetentionPool), color: rgb(0.96, 0.62, 0.05) },
-    { title: 'UTILIDAD NETA TOTAL', val: fmt(result.totalNetProfitPool), color: rgb(0.05, 0.58, 0.4) },
-  ];
+  const ci = result.cooperativeInvestment;
+  const cards = ci
+    ? [
+        { title: 'CAPITAL INVERTIDO', val: fmt(ci.investorCapital), color: rgb(0.14, 0.38, 0.92) },
+        { title: 'RETORNO INVERSIONISTA', val: fmt(ci.investorPayout), color: rgb(0.06, 0.72, 0.5) },
+        { title: 'EXCEDENTE COOP', val: fmt(ci.cooperativePayout), color: rgb(0.96, 0.62, 0.05) },
+        {
+          title: 'RECUPERACION PAYBACK',
+          val: ci.investorPaybackMonths > 120 ? 'No recupera' : `${ci.investorPaybackMonths.toFixed(1)} meses`,
+          color: rgb(0.05, 0.58, 0.4),
+        },
+      ]
+    : [
+        { title: 'CONTRATO BRUTO', val: fmt(result.contractGrossAmount), color: rgb(0.14, 0.38, 0.92) },
+        { title: 'LIQUIDO EN OBRA', val: fmt(result.immediateDistributablePool), color: rgb(0.06, 0.72, 0.5) },
+        { title: 'RETENCION CIERRE', val: fmt(result.deferredRetentionPool), color: rgb(0.96, 0.62, 0.05) },
+        { title: 'UTILIDAD NETA TOTAL', val: fmt(result.totalNetProfitPool), color: rgb(0.05, 0.58, 0.4) },
+      ];
 
   cards.forEach((card, idx) => {
     const cx = 45 + idx * (cardWidth + 10);
@@ -124,36 +136,51 @@ export async function generateDealPdf(
   y -= 55;
 
   // 4. TABLA DE LIQUIDACIÓN PRE-FIRMA (CENTAVO A CENTAVO)
-  page.drawText('1. LIQUIDACION FINANCIERA Y PEAJES DEDUCIBLES', {
-    x: 45,
-    y,
-    size: 10,
-    font: fontBold,
-    color: rgb(0.1, 0.15, 0.25),
-  });
+  page.drawText(
+    ci ? '1. ESTRUCTURA DE INVERSION, RETORNO Y EXCEDENTE COOPERATIVISTA' : '1. LIQUIDACION FINANCIERA Y PEAJES DEDUCIBLES',
+    {
+      x: 45,
+      y,
+      size: 10,
+      font: fontBold,
+      color: rgb(0.1, 0.15, 0.25),
+    }
+  );
 
   y -= 15;
 
-  const tableRows = [
-    { concept: 'Monto Bruto Ofertado (100% Contrato)', rate: '100.0%', amount: fmt(result.contractGrossAmount), isTotal: false, isNeg: false },
-    { concept: `(-) Carga Fiscal IVA/IT ${result.taxes.type}`, rate: `-${result.taxes.effectiveRatePct}%`, amount: `-${fmt(result.taxes.taxAmount)}`, isTotal: false, isNeg: true },
-    ...(result.iue.enabled && result.iue.payer === 'PROYECTO'
-      ? [{ concept: '(-) Prevision Anual IUE 25% (Proyecto)', rate: '25.0%', amount: `-${fmt(result.iue.deductedFromProjectPool)}`, isTotal: false, isNeg: true }]
-      : []),
-    { concept: '(-) Boletas y Polizas Bancarias (Primas)', rate: `-${result.summaryMetrics.effectiveTakeRates.guaranteesPct}%`, amount: `-${fmt(result.guarantees.totalGuaranteesCost)}`, isTotal: false, isNeg: true },
-    { concept: '(-) Diezmo / Comision de Adjudicacion', rate: `-${result.commission.effectivePctOfGross}%`, amount: `-${fmt(result.commission.amount)}`, isTotal: false, isNeg: true },
-    { concept: `(-) Fee Empresa Titular (${safeText(result.titularCompany.name || 'NIT/Firma')})`, rate: `-${result.titularCompany.effectivePctOfGross}%`, amount: `-${fmt(result.titularCompany.amount)}`, isTotal: false, isNeg: true },
-    { concept: '(-) Personal y Cargas Sociales (Staffing)', rate: `-${result.summaryMetrics.effectiveTakeRates.personnelPct}%`, amount: `-${fmt(result.staffing.totalPersonnelCost)}`, isTotal: false, isNeg: true },
-    { concept: '(-) Gastos Operativos y Logistica Directa', rate: `-${result.summaryMetrics.effectiveTakeRates.directCostsPct}%`, amount: `-${fmt(result.directCosts.total)}`, isTotal: false, isNeg: true },
-    ...(!result.statutoryDeduction.isRecoverable && result.statutoryDeduction.amount > 0
-      ? [{ concept: '(-) Aporte No Recuperable a Caja de Salud', rate: `-${result.statutoryDeduction.ratePct}%`, amount: `-${fmt(result.statutoryDeduction.amount)}`, isTotal: false, isNeg: true }]
-      : []),
-    { concept: '(=) UTILIDAD NETA DEL EQUIPO TECNICO', rate: `${result.summaryMetrics.effectiveTakeRates.teamNetProfitPct}%`, amount: fmt(result.totalNetProfitPool), isTotal: true, isNeg: false },
-    ...(result.statutoryDeduction.isRecoverable && result.statutoryDeduction.amount > 0
-      ? [{ concept: '(-) Retencion Diferida (Cobro al Cierre / Acta Definitiva)', rate: `-${result.statutoryDeduction.ratePct}%`, amount: `-${fmt(result.deferredRetentionPool)}`, isTotal: false, isNeg: true }]
-      : []),
-    { concept: '(*) LIQUIDO DISPONIBLE EN EJECUCION', rate: `${result.contractGrossAmount > 0 ? ((result.immediateDistributablePool / result.contractGrossAmount) * 100).toFixed(1) : 0}%`, amount: fmt(result.immediateDistributablePool), isTotal: true, isNeg: false },
-  ];
+  const tableRows = ci
+    ? [
+        { concept: 'Venta de Mineral / Produccion Estimada (Bruto)', rate: '100.0%', amount: fmt(ci.projectedGrossRevenue), isTotal: false, isNeg: false },
+        { concept: `(-) Canon Comunal / Regalia a la Comunidad (${ci.canonComunalPct}%)`, rate: `-${ci.canonComunalPct}%`, amount: `-${fmt(ci.canonComunalAmount)}`, isTotal: false, isNeg: true },
+        { concept: '(-) Costos Operativos Estimados del Periodo (OPEX)', rate: `-${ci.projectedGrossRevenue > 0 ? ((ci.operatingCostsEstimated / ci.projectedGrossRevenue) * 100).toFixed(1) : 0}%`, amount: `-${fmt(ci.operatingCostsEstimated)}`, isTotal: false, isNeg: true },
+        { concept: '(=) EXCEDENTE NETO A REPARTIR', rate: `${ci.projectedGrossRevenue > 0 ? ((ci.netDistributableSurplus / ci.projectedGrossRevenue) * 100).toFixed(1) : 0}%`, amount: fmt(ci.netDistributableSurplus), isTotal: true, isNeg: false },
+        { concept: `(*) Parte Inversionista (${ci.investorSharePct}% del excedente)`, rate: `${ci.investorSharePct}%`, amount: fmt(ci.investorPayout), isTotal: true, isNeg: false },
+        { concept: `    Ganancia Neta Limpia Inversionista (ROI: ${ci.investorRoiPct}%)`, rate: `${ci.investorRoiPct}% ROI`, amount: fmt(ci.investorNetProfit), isTotal: false, isNeg: false },
+        { concept: `(*) Parte Cooperativa (${ci.cooperativeSharePct}% del excedente)`, rate: `${ci.cooperativeSharePct}%`, amount: fmt(ci.cooperativePayout), isTotal: true, isNeg: false },
+        { concept: `    Ingreso Promedio Mensual Cooperativa (${ci.durationMonths} meses)`, rate: 'Mensual', amount: `${fmt(ci.cooperativeMonthlyIncome)}/mes`, isTotal: false, isNeg: false },
+        { concept: '(*) Ingreso Minimo de Equilibrio Requerido (Break-Even)', rate: 'Meta', amount: fmt(ci.breakEvenRevenueRequired), isTotal: false, isNeg: false },
+      ]
+    : [
+        { concept: 'Monto Bruto Ofertado (100% Contrato)', rate: '100.0%', amount: fmt(result.contractGrossAmount), isTotal: false, isNeg: false },
+        { concept: `(-) Carga Fiscal IVA/IT ${result.taxes.type}`, rate: `-${result.taxes.effectiveRatePct}%`, amount: `-${fmt(result.taxes.taxAmount)}`, isTotal: false, isNeg: true },
+        ...(result.iue.enabled && result.iue.payer === 'PROYECTO'
+          ? [{ concept: '(-) Prevision Anual IUE 25% (Proyecto)', rate: '25.0%', amount: `-${fmt(result.iue.deductedFromProjectPool)}`, isTotal: false, isNeg: true }]
+          : []),
+        { concept: '(-) Boletas y Polizas Bancarias (Primas)', rate: `-${result.summaryMetrics.effectiveTakeRates.guaranteesPct}%`, amount: `-${fmt(result.guarantees.totalGuaranteesCost)}`, isTotal: false, isNeg: true },
+        { concept: '(-) Diezmo / Comision de Adjudicacion', rate: `-${result.commission.effectivePctOfGross}%`, amount: `-${fmt(result.commission.amount)}`, isTotal: false, isNeg: true },
+        { concept: `(-) Fee Empresa Titular (${safeText(result.titularCompany.name || 'NIT/Firma')})`, rate: `-${result.titularCompany.effectivePctOfGross}%`, amount: `-${fmt(result.titularCompany.amount)}`, isTotal: false, isNeg: true },
+        { concept: '(-) Personal y Cargas Sociales (Staffing)', rate: `-${result.summaryMetrics.effectiveTakeRates.personnelPct}%`, amount: `-${fmt(result.staffing.totalPersonnelCost)}`, isTotal: false, isNeg: true },
+        { concept: '(-) Gastos Operativos y Logistica Directa', rate: `-${result.summaryMetrics.effectiveTakeRates.directCostsPct}%`, amount: `-${fmt(result.directCosts.total)}`, isTotal: false, isNeg: true },
+        ...(!result.statutoryDeduction.isRecoverable && result.statutoryDeduction.amount > 0
+          ? [{ concept: '(-) Aporte No Recuperable a Caja de Salud', rate: `-${result.statutoryDeduction.ratePct}%`, amount: `-${fmt(result.statutoryDeduction.amount)}`, isTotal: false, isNeg: true }]
+          : []),
+        { concept: '(=) UTILIDAD NETA DEL EQUIPO TECNICO', rate: `${result.summaryMetrics.effectiveTakeRates.teamNetProfitPct}%`, amount: fmt(result.totalNetProfitPool), isTotal: true, isNeg: false },
+        ...(result.statutoryDeduction.isRecoverable && result.statutoryDeduction.amount > 0
+          ? [{ concept: '(-) Retencion Diferida (Cobro al Cierre / Acta Definitiva)', rate: `-${result.statutoryDeduction.ratePct}%`, amount: `-${fmt(result.deferredRetentionPool)}`, isTotal: false, isNeg: true }]
+          : []),
+        { concept: '(*) LIQUIDO DISPONIBLE EN EJECUCION', rate: `${result.contractGrossAmount > 0 ? ((result.immediateDistributablePool / result.contractGrossAmount) * 100).toFixed(1) : 0}%`, amount: fmt(result.immediateDistributablePool), isTotal: true, isNeg: false },
+      ];
 
   tableRows.forEach((row) => {
     if (row.isTotal) {

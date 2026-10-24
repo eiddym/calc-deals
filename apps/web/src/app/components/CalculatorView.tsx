@@ -113,6 +113,16 @@ export function CalculatorView() {
   const [contractDurationValue, setContractDurationValue] = useState<number>(1);
   const [contractDurationUnit, setContractDurationUnit] = useState<'days' | 'weeks' | 'months'>('months');
 
+  // Estado especializado para Negociación Cooperativa / Inversión (Enfoque centrado en capital del inversionista)
+  const [coopInvestorCapital, setCoopInvestorCapital] = useState<number>(0);
+  const [coopDurationMonths, setCoopDurationMonths] = useState<number>(18);
+  const [coopInvestorSharePct, setCoopInvestorSharePct] = useState<number>(70);
+  const [coopOperatingCosts, setCoopOperatingCosts] = useState<number>(0);
+  const [coopCanonPct, setCoopCanonPct] = useState<number>(5);
+  const [coopTargetRoiPct, setCoopTargetRoiPct] = useState<number>(40);
+  const [coopMinCoopIncome, setCoopMinCoopIncome] = useState<number>(0);
+  const [coopProjectedRevenue, setCoopProjectedRevenue] = useState<number>(0);
+
   // Notificación tipo toast temporal
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -157,8 +167,8 @@ export function CalculatorView() {
         },
       }));
     } else if (mode === 'COOPERATIVA_INVERSION') {
-      setTaxEnabled(true);
-      setSelectedTaxType('RETENCION_LEY');
+      setTaxEnabled(false);
+      setSelectedTaxType('SIN_FACTURA');
       setInput((prev) => ({
         ...prev,
         negotiationMode: mode,
@@ -170,7 +180,7 @@ export function CalculatorView() {
           hasAdvanceBond: false,
         },
         statutoryDeductions: {
-          retentionRatePct: 5,
+          retentionRatePct: coopCanonPct,
           isRecoverable: false, // Canon / aporte comunal
         },
       }));
@@ -179,8 +189,14 @@ export function CalculatorView() {
 
   // Input computado reactivamente con los toggles fiscales y la lista de socios
   const activeInput: DealCalculationInput = useMemo(() => {
+    const isCoop = input.negotiationMode === 'COOPERATIVA_INVERSION';
+    const effectiveGross = isCoop
+      ? (coopProjectedRevenue > 0 ? coopProjectedRevenue : input.contractGrossAmount)
+      : input.contractGrossAmount;
+
     return {
       ...input,
+      contractGrossAmount: effectiveGross,
       taxScenario: {
         type: taxEnabled ? selectedTaxType : 'SIN_FACTURA',
         customRatePct: customTaxRate,
@@ -188,10 +204,43 @@ export function CalculatorView() {
       },
       distribution: {
         ...input.distribution,
-        partners,
+        partners: isCoop
+          ? [
+              { id: 'partner-inv', name: 'Inversionista (Capital)', role: 'Financista', pct: coopInvestorSharePct },
+              { id: 'partner-coop', name: 'Cooperativa (Área & Mano de Obra)', role: 'Comunidad / Socios', pct: Math.max(0, 100 - coopInvestorSharePct) },
+            ]
+          : partners,
       },
+      cooperativeInvestment: isCoop
+        ? {
+            investorCapital: coopInvestorCapital,
+            durationMonths: coopDurationMonths,
+            investorSharePct: coopInvestorSharePct,
+            cooperativeSharePct: Math.max(0, 100 - coopInvestorSharePct),
+            operatingCostsEstimated: coopOperatingCosts,
+            canonComunalPct: coopCanonPct,
+            targetInvestorRoiPct: coopTargetRoiPct,
+            minCooperativeIncome: coopMinCoopIncome,
+            projectedGrossRevenue: coopProjectedRevenue > 0 ? coopProjectedRevenue : input.contractGrossAmount,
+          }
+        : undefined,
     };
-  }, [input, taxEnabled, selectedTaxType, customTaxRate, taxCreditPct, partners]);
+  }, [
+    input,
+    taxEnabled,
+    selectedTaxType,
+    customTaxRate,
+    taxCreditPct,
+    partners,
+    coopInvestorCapital,
+    coopDurationMonths,
+    coopInvestorSharePct,
+    coopOperatingCosts,
+    coopCanonPct,
+    coopTargetRoiPct,
+    coopMinCoopIncome,
+    coopProjectedRevenue,
+  ]);
 
   // Motor financiero puro con precisión decimal.js
   const result = useMemo(() => {
@@ -547,87 +596,206 @@ export function CalculatorView() {
         {/* =========================================================
             THE 4 HERO NUMBERS (SIEMPRE VISIBLES COMO HUD EJECUTIVO)
             ========================================================= */}
-        <section className={styles.metricsGrid}>
-          {/* Hero: Proyectista / Primer Socio Real Gain */}
-          <div className={styles.heroMetricCard}>
-            <div className={styles.metricEyebrow}>
-              <span>{partners[0]?.name || 'Ganancia Proyectista'}</span>
-              {hasContractAmount && (
-                <span className={styles.highlightPill}>
-                  {result.distribution.partners[0]?.effectiveMarginOnGross || 0}% margen
+        {input.negotiationMode === 'COOPERATIVA_INVERSION' && result.cooperativeInvestment ? (
+          <section className={styles.metricsGrid}>
+            {/* Card 1: Inversionista Retorno & ROI */}
+            <div className={styles.heroMetricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Inversionista (Retorno Bruto)</span>
+                <span
+                  className={
+                    result.cooperativeInvestment.investorStatus === 'VERDE'
+                      ? styles.statusPillGreen
+                      : result.cooperativeInvestment.investorStatus === 'AMARILLO'
+                      ? styles.statusPillYellow
+                      : styles.statusPillRed
+                  }
+                >
+                  {result.cooperativeInvestment.investorRoiPct > 0 ? '+' : ''}
+                  {result.cooperativeInvestment.investorRoiPct}% ROI
                 </span>
-              )}
-            </div>
-            <div className={styles.heroValue}>
-              {hasContractAmount ? fmt(result.distribution.partners[0]?.totalAmount || 0) : `0 ${currency}`}
-            </div>
-            <div className={styles.metricSubtext}>
-              {hasContractAmount ? (
+              </div>
+              <div className={styles.heroValue}>
+                {fmt(result.cooperativeInvestment.investorPayout)}
+              </div>
+              <div className={styles.metricSubtext}>
                 <span>
-                  Líquido: <strong>{fmt(result.distribution.partners[0]?.immediateAmount || 0)}</strong>
-                  {result.deferredRetentionPool > 0 && (
-                    <span style={{ color: '#fbbf24' }}>
-                      {' '}
-                      | Cierre: {fmt(result.distribution.partners[0]?.deferredAmount || 0)}
-                    </span>
-                  )}
+                  Capital: <strong>{fmt(result.cooperativeInvestment.investorCapital)}</strong> | Ganancia Neta:{' '}
+                  <strong style={{ color: result.cooperativeInvestment.investorNetProfit >= 0 ? '#34d399' : '#f43f5e' }}>
+                    {fmt(result.cooperativeInvestment.investorNetProfit)}
+                  </strong>
                 </span>
-              ) : (
-                <span>Ingresa el monto del contrato</span>
-              )}
+              </div>
             </div>
-          </div>
 
-          {/* Líquido Inmediato en Ejecución */}
-          <div className={styles.metricCard}>
-            <div className={styles.metricEyebrow}>
-              <span>Líquido en Ejecución</span>
-              <span style={{ color: '#34d399' }}>● Disponible</span>
-            </div>
-            <div className={styles.metricValue} style={{ color: '#38bdf8' }}>
-              {fmt(result.immediateDistributablePool)}
-            </div>
-            <div className={styles.metricSubtext}>
-              Distribuible durante la obra
-            </div>
-          </div>
-
-          {/* Fondo Retenido / Caja de Salud (Diferido) */}
-          <div className={styles.metricCard}>
-            <div className={styles.metricEyebrow}>
-              <span>Retención ({result.statutoryDeduction.ratePct}%)</span>
-              <span className={result.statutoryDeduction.isRecoverable ? styles.warningPill : styles.dangerPill}>
-                {result.statutoryDeduction.isRecoverable ? 'Recuperable' : 'Fondo Perdido'}
-              </span>
-            </div>
-            <div className={styles.metricValue} style={{ color: '#fbbf24' }}>
-              {fmt(result.statutoryDeduction.amount)}
-            </div>
-            <div className={styles.metricSubtext}>
-              {result.statutoryDeduction.isRecoverable
-                ? 'Cobro en Recepción Definitiva'
-                : 'Aporte normativo no devuelto'}
-            </div>
-          </div>
-
-          {/* Peajes & Fricciones Totales */}
-          <div className={styles.metricCard}>
-            <div className={styles.metricEyebrow}>
-              <span>Costos & Peajes Totales</span>
-              {hasContractAmount && (
-                <span className={styles.dangerPill}>
-                  -{(100 - result.summaryMetrics.effectiveTakeRates.teamNetProfitPct).toFixed(1)}%
+            {/* Card 2: Cooperativa Excedente & Mes */}
+            <div className={styles.metricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Cooperativa ({result.cooperativeInvestment.cooperativeSharePct}%)</span>
+                <span style={{ color: '#34d399' }}>
+                  ● {fmt(result.cooperativeInvestment.cooperativeMonthlyIncome)}/mes
                 </span>
-              )}
+              </div>
+              <div className={styles.metricValue} style={{ color: '#38bdf8' }}>
+                {fmt(result.cooperativeInvestment.cooperativePayout)}
+              </div>
+              <div className={styles.metricSubtext}>
+                Mínimo esperado: {fmt(result.cooperativeInvestment.minCooperativeIncome || 0)}
+              </div>
             </div>
-            <div className={styles.metricValue} style={{ color: '#f43f5e' }}>
-              -{fmt(result.totalNonRecoverableExpenses)}
+
+            {/* Card 3: Payback Recuperación */}
+            <div className={styles.metricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Plazo: {result.cooperativeInvestment.durationMonths} meses</span>
+                <span
+                  className={
+                    result.cooperativeInvestment.investorPaybackMonths <= result.cooperativeInvestment.durationMonths
+                      ? styles.warningPill
+                      : styles.dangerPill
+                  }
+                >
+                  {result.cooperativeInvestment.investorPaybackMonths <= result.cooperativeInvestment.durationMonths
+                    ? 'En Plazo'
+                    : 'Fuera de Plazo'}
+                </span>
+              </div>
+              <div className={styles.metricValue} style={{ color: '#fbbf24' }}>
+                {result.cooperativeInvestment.investorPaybackMonths > 120
+                  ? 'No recupera'
+                  : `${result.cooperativeInvestment.investorPaybackMonths.toFixed(1)} meses`}
+              </div>
+              <div className={styles.metricSubtext}>
+                Payback recuperación de capital ({fmt(result.cooperativeInvestment.investorCapital)})
+              </div>
             </div>
-            <div className={styles.metricSubtext}>
-              Impuestos + IUE + Boletas + Diezmo + Personal + Obra
+
+            {/* Card 4: Semáforo de la Mesa */}
+            <div className={styles.metricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Viabilidad de la Mesa</span>
+                <span
+                  className={
+                    result.cooperativeInvestment.overallDealStatus === 'VERDE'
+                      ? styles.statusPillGreen
+                      : result.cooperativeInvestment.overallDealStatus === 'AMARILLO'
+                      ? styles.statusPillYellow
+                      : styles.statusPillRed
+                  }
+                >
+                  {result.cooperativeInvestment.overallDealStatus}
+                </span>
+              </div>
+              <div
+                className={styles.metricValue}
+                style={{
+                  color:
+                    result.cooperativeInvestment.overallDealStatus === 'VERDE'
+                      ? '#34d399'
+                      : result.cooperativeInvestment.overallDealStatus === 'AMARILLO'
+                      ? '#fbbf24'
+                      : '#f43f5e',
+                  fontSize: '1.25rem',
+                }}
+              >
+                {result.cooperativeInvestment.overallDealStatus === 'VERDE'
+                  ? '🟢 ZONA VERDE'
+                  : result.cooperativeInvestment.overallDealStatus === 'AMARILLO'
+                  ? '🟡 ZONA AMARILLA'
+                  : '🔴 ZONA ROJA'}
+              </div>
+              <div className={styles.metricSubtext}>
+                {result.cooperativeInvestment.overallDealStatus === 'VERDE'
+                  ? 'Acuerdo viable y rentable para ambos'
+                  : result.cooperativeInvestment.overallDealStatus === 'AMARILLO'
+                  ? 'Negociación tensa: ajustar % o plazo'
+                  : 'Inviable con números actuales'}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : (
+          <section className={styles.metricsGrid}>
+            {/* Hero: Proyectista / Primer Socio Real Gain */}
+            <div className={styles.heroMetricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>{partners[0]?.name || 'Ganancia Proyectista'}</span>
+                {hasContractAmount && (
+                  <span className={styles.highlightPill}>
+                    {result.distribution.partners[0]?.effectiveMarginOnGross || 0}% margen
+                  </span>
+                )}
+              </div>
+              <div className={styles.heroValue}>
+                {hasContractAmount ? fmt(result.distribution.partners[0]?.totalAmount || 0) : `0 ${currency}`}
+              </div>
+              <div className={styles.metricSubtext}>
+                {hasContractAmount ? (
+                  <span>
+                    Líquido: <strong>{fmt(result.distribution.partners[0]?.immediateAmount || 0)}</strong>
+                    {result.deferredRetentionPool > 0 && (
+                      <span style={{ color: '#fbbf24' }}>
+                        {' '}
+                        | Cierre: {fmt(result.distribution.partners[0]?.deferredAmount || 0)}
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span>Ingresa el monto del contrato</span>
+                )}
+              </div>
+            </div>
+
+            {/* Líquido Inmediato en Ejecución */}
+            <div className={styles.metricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Líquido en Ejecución</span>
+                <span style={{ color: '#34d399' }}>● Disponible</span>
+              </div>
+              <div className={styles.metricValue} style={{ color: '#38bdf8' }}>
+                {fmt(result.immediateDistributablePool)}
+              </div>
+              <div className={styles.metricSubtext}>
+                Distribuible durante la obra
+              </div>
+            </div>
+
+            {/* Fondo Retenido / Caja de Salud (Diferido) */}
+            <div className={styles.metricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Retención ({result.statutoryDeduction.ratePct}%)</span>
+                <span className={result.statutoryDeduction.isRecoverable ? styles.warningPill : styles.dangerPill}>
+                  {result.statutoryDeduction.isRecoverable ? 'Recuperable' : 'Fondo Perdido'}
+                </span>
+              </div>
+              <div className={styles.metricValue} style={{ color: '#fbbf24' }}>
+                {fmt(result.statutoryDeduction.amount)}
+              </div>
+              <div className={styles.metricSubtext}>
+                {result.statutoryDeduction.isRecoverable
+                  ? 'Cobro en Recepción Definitiva'
+                  : 'Aporte normativo no devuelto'}
+              </div>
+            </div>
+
+            {/* Peajes & Fricciones Totales */}
+            <div className={styles.metricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Costos & Peajes Totales</span>
+                {hasContractAmount && (
+                  <span className={styles.dangerPill}>
+                    -{(100 - result.summaryMetrics.effectiveTakeRates.teamNetProfitPct).toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              <div className={styles.metricValue} style={{ color: '#f43f5e' }}>
+                -{fmt(result.totalNonRecoverableExpenses)}
+              </div>
+              <div className={styles.metricSubtext}>
+                Impuestos + IUE + Boletas + Diezmo + Personal + Obra
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* =========================================================
             CONTENIDO DINÁMICO DE LAS 5 PESTAÑAS
@@ -862,13 +1030,427 @@ export function CalculatorView() {
               <div className={styles.panelTitleBar}>
                 <div className={styles.panelTitle}>
                   <span className={styles.panelNumber}>1</span>
-                  <span>Mesa de Negociación y Peajes</span>
+                  <span>
+                    {input.negotiationMode === 'COOPERATIVA_INVERSION'
+                      ? 'Mesa de Negociación Cooperativa - Inversión'
+                      : 'Mesa de Negociación y Peajes'}
+                  </span>
                 </div>
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Variables maestras</span>
+                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                  {input.negotiationMode === 'COOPERATIVA_INVERSION'
+                    ? 'Enfoque centrado en capital del inversionista'
+                    : 'Variables maestras'}
+                </span>
               </div>
 
-              {/* Presupuesto Principal Ofertado (Sin hardcodeo) */}
-              <div className={styles.contractHeroBox}>
+              {input.negotiationMode === 'COOPERATIVA_INVERSION' && result.cooperativeInvestment ? (
+                <div className={styles.coopSectionWrapper}>
+                  {/* 1. EL NÚMERO PRINCIPAL: CAPITAL QUE PONE EL INVERSIONISTA */}
+                  <div className={styles.coopHeroCard}>
+                    <div className={styles.coopHeroHeader}>
+                      <div className={styles.coopHeroTitle}>
+                        <span>💰 1. Capital del Inversionista</span>
+                        <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 500 }}>
+                          (Punto de partida de toda la negociación)
+                        </span>
+                      </div>
+                      <div className={styles.coopHeroBadge}>Número Principal</div>
+                    </div>
+
+                    <div className={styles.coopInputHeroWrapper}>
+                      <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f59e0b' }}>
+                        {currency === 'Bs' ? 'Bs' : '$'}
+                      </span>
+                      <input
+                        type="number"
+                        placeholder="0.00"
+                        className={styles.coopInputHero}
+                        value={coopInvestorCapital === 0 ? '' : coopInvestorCapital}
+                        onChange={(e) => setCoopInvestorCapital(Number(e.target.value) || 0)}
+                        step={10000}
+                      />
+                    </div>
+
+                    <div className={styles.coopQuickBtns}>
+                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', alignSelf: 'center' }}>
+                        Añadir rápido:
+                      </span>
+                      <button
+                        type="button"
+                        className={styles.coopQuickBtn}
+                        onClick={() => setCoopInvestorCapital((c) => c + 50000)}
+                      >
+                        +50k
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.coopQuickBtn}
+                        onClick={() => setCoopInvestorCapital((c) => c + 100000)}
+                      >
+                        +100k
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.coopQuickBtn}
+                        onClick={() => setCoopInvestorCapital((c) => c + 250000)}
+                      >
+                        +250k
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.coopQuickBtn}
+                        onClick={() => setCoopInvestorCapital((c) => c + 500000)}
+                      >
+                        +500k
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.coopQuickBtn}
+                        style={{ color: '#f87171' }}
+                        onClick={() => setCoopInvestorCapital(0)}
+                      >
+                        Limpiar
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. PARÁMETROS DE LA MESA Y REPARTO EN TIEMPO REAL */}
+                  <div className={styles.coopParamsGrid}>
+                    {/* Plazo y Retorno Objetivo */}
+                    <div className={styles.coopParamCard}>
+                      <div className={styles.coopParamLabel}>
+                        <span>⏱️ Duración del Ciclo / Contrato:</span>
+                        <strong style={{ color: '#38bdf8' }}>{coopDurationMonths} meses</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="36"
+                        step="1"
+                        className={styles.sliderTrack}
+                        value={coopDurationMonths}
+                        onChange={(e) => setCoopDurationMonths(Number(e.target.value))}
+                      />
+                      <div className={styles.splitButtonsGroup}>
+                        {[6, 12, 18, 24, 36].map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            className={`${styles.splitBtn} ${coopDurationMonths === m ? styles.splitBtnActive : ''}`}
+                            onClick={() => setCoopDurationMonths(m)}
+                          >
+                            {m}m
+                          </button>
+                        ))}
+                      </div>
+
+                      <div style={{ marginTop: '0.65rem' }}>
+                        <div className={styles.coopParamLabel}>
+                          <span>🎯 Retorno Objetivo Inversionista (Target ROI):</span>
+                          <strong style={{ color: '#fbbf24' }}>{coopTargetRoiPct}%</strong>
+                        </div>
+                        <input
+                          type="range"
+                          min="10"
+                          max="100"
+                          step="5"
+                          className={styles.sliderTrack}
+                          value={coopTargetRoiPct}
+                          onChange={(e) => setCoopTargetRoiPct(Number(e.target.value))}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Reparto Dual Inversionista vs Cooperativa */}
+                    <div className={styles.coopParamCard}>
+                      <div className={styles.coopParamLabel}>
+                        <span>⚖️ Reparto Acordado del Excedente:</span>
+                        <span>
+                          <strong style={{ color: '#60a5fa' }}>{coopInvestorSharePct}% Inv</strong> /{' '}
+                          <strong style={{ color: '#34d399' }}>{100 - coopInvestorSharePct}% Coop</strong>
+                        </span>
+                      </div>
+
+                      {/* Visual Dual Track */}
+                      <div className={styles.dualSliderTrack}>
+                        <div
+                          className={styles.dualSliderLeft}
+                          style={{ width: `${coopInvestorSharePct}%` }}
+                        >
+                          {coopInvestorSharePct >= 20 ? `${coopInvestorSharePct}% Inv` : ''}
+                        </div>
+                        <div
+                          className={styles.dualSliderRight}
+                          style={{ width: `${100 - coopInvestorSharePct}%` }}
+                        >
+                          {100 - coopInvestorSharePct >= 20 ? `${100 - coopInvestorSharePct}% Coop` : ''}
+                        </div>
+                      </div>
+
+                      <input
+                        type="range"
+                        min="10"
+                        max="90"
+                        step="5"
+                        className={styles.sliderTrack}
+                        value={coopInvestorSharePct}
+                        onChange={(e) => setCoopInvestorSharePct(Number(e.target.value))}
+                      />
+
+                      <div className={styles.splitButtonsGroup}>
+                        {[
+                          { label: '80/20', inv: 80 },
+                          { label: '70/30', inv: 70 },
+                          { label: '60/40', inv: 60 },
+                          { label: '50/50', inv: 50 },
+                          { label: '40/60', inv: 40 },
+                        ].map((item) => (
+                          <button
+                            key={item.label}
+                            type="button"
+                            className={`${styles.splitBtn} ${coopInvestorSharePct === item.inv ? styles.splitBtnActive : ''}`}
+                            onClick={() => setCoopInvestorSharePct(item.inv)}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Costos Operativos y Canon Comunal */}
+                    <div className={styles.coopParamCard}>
+                      <div className={styles.coopParamLabel}>
+                        <span>⚙️ Costos Operativos Estimados (OPEX):</span>
+                        <span style={{ color: '#f43f5e', fontWeight: 800 }}>-{fmt(coopOperatingCosts)}</span>
+                      </div>
+                      <input
+                        type="number"
+                        placeholder="0.00"
+                        className={styles.darkInput}
+                        value={coopOperatingCosts === 0 ? '' : coopOperatingCosts}
+                        onChange={(e) => setCoopOperatingCosts(Number(e.target.value) || 0)}
+                        step={5000}
+                      />
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                        Combustible, explosivos, mantenimiento de maquinaria, insumos mineros y cuadrillas.
+                      </span>
+
+                      <div style={{ marginTop: '0.65rem' }}>
+                        <div className={styles.coopParamLabel}>
+                          <span>🏛️ Canon / Aporte Comunal (% s/bruto):</span>
+                          <strong style={{ color: '#fbbf24' }}>
+                            {coopCanonPct}% (-{fmt(result.cooperativeInvestment.canonComunalAmount)})
+                          </strong>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="15"
+                          step="1"
+                          className={styles.sliderTrack}
+                          value={coopCanonPct}
+                          onChange={(e) => setCoopCanonPct(Number(e.target.value))}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Mínimo Cooperativa y Producción Estimada */}
+                    <div className={styles.coopParamCard}>
+                      <div className={styles.coopParamLabel}>
+                        <span>⛏️ Mínimo Aceptable para la Cooperativa:</span>
+                        <strong style={{ color: '#34d399' }}>{fmt(coopMinCoopIncome)}</strong>
+                      </div>
+                      <input
+                        type="number"
+                        placeholder="0.00"
+                        className={styles.darkInput}
+                        value={coopMinCoopIncome === 0 ? '' : coopMinCoopIncome}
+                        onChange={(e) => setCoopMinCoopIncome(Number(e.target.value) || 0)}
+                        step={5000}
+                      />
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                        Piso mínimo de ganancia total que exige la asamblea cooperativista para autorizar el acuerdo.
+                      </span>
+
+                      <div style={{ marginTop: '0.65rem' }}>
+                        <div className={styles.coopParamLabel}>
+                          <span>💎 Ingreso Estimado Venta Mineral (Bruto):</span>
+                          <strong style={{ color: '#38bdf8' }}>{fmt(coopProjectedRevenue)}</strong>
+                        </div>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          className={styles.darkInput}
+                          value={coopProjectedRevenue === 0 ? '' : coopProjectedRevenue}
+                          onChange={(e) => setCoopProjectedRevenue(Number(e.target.value) || 0)}
+                          step={20000}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. BOTÓN DE CÁLCULO INVERSO: BREAK-EVEN REQUERIDO */}
+                  <div className={styles.breakEvenHighlight}>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block' }}>
+                        Ingreso Mínimo de Equilibrio para que ambos estén en Zona Verde:
+                      </span>
+                      <strong style={{ fontSize: '1.15rem', color: '#38bdf8', fontFamily: 'monospace' }}>
+                        {fmt(result.cooperativeInvestment.breakEvenRevenueRequired)}
+                      </strong>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.tactileBtnPrimary}
+                      style={{ padding: '0.45rem 0.9rem', fontSize: '0.8rem', minHeight: 'auto' }}
+                      onClick={() => setCoopProjectedRevenue(result.cooperativeInvestment!.breakEvenRevenueRequired)}
+                    >
+                      ⚡ Cargar este ingreso estimado
+                    </button>
+                  </div>
+
+                  {/* 4. SCOREBOARD DE COMPARACIÓN EN VIVO (MESA DE REUNIÓN) */}
+                  <div className={styles.coopScoreboard}>
+                    {/* Columna Inversionista */}
+                    <div className={`${styles.scoreboardCard} ${styles.scoreboardInvestor}`}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ color: '#60a5fa', fontSize: '0.95rem' }}>💼 Inversionista</strong>
+                        <span
+                          className={
+                            result.cooperativeInvestment.investorStatus === 'VERDE'
+                              ? styles.statusPillGreen
+                              : result.cooperativeInvestment.investorStatus === 'AMARILLO'
+                              ? styles.statusPillYellow
+                              : styles.statusPillRed
+                          }
+                        >
+                          {result.cooperativeInvestment.investorStatus}
+                        </span>
+                      </div>
+
+                      <div className={styles.scoreRow}>
+                        <span>Capital Aportado:</span>
+                        <span className={styles.scoreValBold}>{fmt(result.cooperativeInvestment.investorCapital)}</span>
+                      </div>
+                      <div className={styles.scoreRow}>
+                        <span>Retorno Bruto ({result.cooperativeInvestment.investorSharePct}%):</span>
+                        <span className={styles.scoreValBold} style={{ color: '#38bdf8' }}>
+                          {fmt(result.cooperativeInvestment.investorPayout)}
+                        </span>
+                      </div>
+                      <div className={styles.scoreRow}>
+                        <span>Ganancia Neta Limpia:</span>
+                        <span
+                          className={styles.scoreValBold}
+                          style={{ color: result.cooperativeInvestment.investorNetProfit >= 0 ? '#34d399' : '#f43f5e' }}
+                        >
+                          {fmt(result.cooperativeInvestment.investorNetProfit)}
+                        </span>
+                      </div>
+                      <div className={styles.scoreRow}>
+                        <span>ROI Obtenido vs Objetivo:</span>
+                        <span className={styles.scoreValBold}>
+                          {result.cooperativeInvestment.investorRoiPct}%{' '}
+                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                            (meta: {result.cooperativeInvestment.targetInvestorRoiPct || 40}%)
+                          </span>
+                        </span>
+                      </div>
+                      <div className={styles.scoreRow}>
+                        <span>Tiempo Recuperación (Payback):</span>
+                        <span className={styles.scoreValBold} style={{ color: '#fbbf24' }}>
+                          {result.cooperativeInvestment.investorPaybackMonths > 120
+                            ? 'No recupera'
+                            : `${result.cooperativeInvestment.investorPaybackMonths.toFixed(1)} meses`}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '0.73rem', color: '#cbd5e1', margin: '0.2rem 0 0' }}>
+                        {result.cooperativeInvestment.investorStatusMessage}
+                      </p>
+                    </div>
+
+                    {/* Columna Cooperativa */}
+                    <div className={`${styles.scoreboardCard} ${styles.scoreboardCoop}`}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ color: '#34d399', fontSize: '0.95rem' }}>⛏️ Cooperativa Minera</strong>
+                        <span
+                          className={
+                            result.cooperativeInvestment.cooperativeStatus === 'VERDE'
+                              ? styles.statusPillGreen
+                              : result.cooperativeInvestment.cooperativeStatus === 'AMARILLO'
+                              ? styles.statusPillYellow
+                              : styles.statusPillRed
+                          }
+                        >
+                          {result.cooperativeInvestment.cooperativeStatus}
+                        </span>
+                      </div>
+
+                      <div className={styles.scoreRow}>
+                        <span>Excedente Recibido ({result.cooperativeInvestment.cooperativeSharePct}%):</span>
+                        <span className={styles.scoreValBold} style={{ color: '#34d399' }}>
+                          {fmt(result.cooperativeInvestment.cooperativePayout)}
+                        </span>
+                      </div>
+                      <div className={styles.scoreRow}>
+                        <span>Ingreso Promedio Mensual:</span>
+                        <span className={styles.scoreValBold} style={{ color: '#38bdf8' }}>
+                          {fmt(result.cooperativeInvestment.cooperativeMonthlyIncome)}/mes
+                        </span>
+                      </div>
+                      <div className={styles.scoreRow}>
+                        <span>Mínimo Aceptable Exigido:</span>
+                        <span className={styles.scoreValBold}>
+                          {fmt(result.cooperativeInvestment.minCooperativeIncome || 0)}
+                        </span>
+                      </div>
+                      <div className={styles.scoreRow}>
+                        <span>Canon Comunal Generado ({result.cooperativeInvestment.canonComunalPct}%):</span>
+                        <span className={styles.scoreValBold} style={{ color: '#fbbf24' }}>
+                          {fmt(result.cooperativeInvestment.canonComunalAmount)}
+                        </span>
+                      </div>
+                      <div className={styles.scoreRow}>
+                        <span>Costos OPEX Cubiertos:</span>
+                        <span className={styles.scoreValBold} style={{ color: '#94a3b8' }}>
+                          {fmt(result.cooperativeInvestment.operatingCostsEstimated)}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '0.73rem', color: '#cbd5e1', margin: '0.2rem 0 0' }}>
+                        {result.cooperativeInvestment.cooperativeStatusMessage}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 5. VEREDICTO DE LA REUNIÓN (SEMÁFORO GLOBAL) */}
+                  <div
+                    className={`${styles.verdictBanner} ${
+                      result.cooperativeInvestment.overallDealStatus === 'VERDE'
+                        ? styles.verdictBannerGreen
+                        : result.cooperativeInvestment.overallDealStatus === 'AMARILLO'
+                        ? styles.verdictBannerYellow
+                        : styles.verdictBannerRed
+                    }`}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <strong style={{ fontSize: '1rem', color: '#ffffff' }}>
+                        {result.cooperativeInvestment.overallDealStatus === 'VERDE' && '🟢 ZONA VERDE: Trato Viable y Recomendado'}
+                        {result.cooperativeInvestment.overallDealStatus === 'AMARILLO' && '🟡 ZONA AMARILLA: Negociación en Tensión'}
+                        {result.cooperativeInvestment.overallDealStatus === 'ROJO' && '🔴 ZONA ROJA: Trato Inviable'}
+                      </strong>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f1f5f9' }}>
+                        Dictamen de Asamblea
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.82rem', color: '#f1f5f9', margin: 0 }}>
+                      {result.cooperativeInvestment.overallDealMessage}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Presupuesto Principal Ofertado (Sin hardcodeo) */}
+                  <div className={styles.contractHeroBox}>
                 <div className={styles.contractLabel}>
                   <span>Monto Bruto Ofertado ({currency})</span>
                   <span style={{ color: '#60a5fa' }}>Total contrato / pliego licitado</span>
@@ -1563,8 +2145,10 @@ export function CalculatorView() {
                   </div>
                 )}
               </div>
-            </div>
+            </>
           )}
+        </div>
+      )}
 
           {/* =========================================================
               TAB 3: 👥 COSTOS (PERSONAL & GASTOS DIRECTOS)

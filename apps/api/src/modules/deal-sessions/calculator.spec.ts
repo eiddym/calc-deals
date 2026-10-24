@@ -132,4 +132,56 @@ describe('Calculator in API integration', () => {
     expect(res.titularCompany.varianceAnalysis.taxBurdenDifference).toBe(16000);
     expect(res.titularCompany.varianceAnalysis.ifTeamAbsorbsTaxes.teamNetGain).toBe(74000);
   });
+
+  it('calcula la negociación cooperativa centrada en capital del inversionista, payback y semáforo', () => {
+    const input: DealCalculationInput = {
+      contractGrossAmount: 800000, // Proyección de venta de mineral
+      negotiationMode: 'COOPERATIVA_INVERSION',
+      taxScenario: { type: 'SIN_FACTURA' },
+      iueTax: { enabled: false, ratePct: 25, payer: 'EXENTO' },
+      guarantees: { hasBidBond: false, hasPerformanceBond: false, hasAdvanceBond: false },
+      statutoryDeductions: { retentionRatePct: 5, isRecoverable: false }, // Canon comunal 5%
+      adjudicationCommission: { type: 'PERCENTAGE_GROSS', value: 0 },
+      titularCompany: { type: 'PERCENTAGE_GROSS', value: 0, enabled: false },
+      staffing: { assignments: [] },
+      directCosts: { items: [{ id: '1', concept: 'Combustible y explosivos', amount: 100000 }] },
+      distribution: { contingencyFundPct: 0 },
+      cooperativeInvestment: {
+        investorCapital: 350000,
+        durationMonths: 18,
+        investorSharePct: 70,
+        cooperativeSharePct: 30,
+        operatingCostsEstimated: 100000,
+        canonComunalPct: 5, // 5% de 800k = 40,000 Bs
+        targetInvestorRoiPct: 40,
+        minCooperativeIncome: 100000,
+        projectedGrossRevenue: 800000,
+      },
+    };
+
+    const res = calculateDeal(input);
+    expect(res.cooperativeInvestment).toBeDefined();
+    const ci = res.cooperativeInvestment!;
+
+    expect(ci.investorCapital).toBe(350000);
+    expect(ci.durationMonths).toBe(18);
+    expect(ci.canonComunalAmount).toBe(40000);
+    // Excedente neto: 800,000 - 100,000 (OPEX) - 40,000 (Canon) = 660,000 Bs
+    expect(ci.netDistributableSurplus).toBe(660000);
+    // Inversionista 70%: 660,000 * 0.70 = 462,000 Bs
+    expect(ci.investorPayout).toBe(462000);
+    // Ganancia neta: 462,000 - 350,000 = 112,000 Bs
+    expect(ci.investorNetProfit).toBe(112000);
+    // ROI: (112,000 / 350,000) * 100 = 32%
+    expect(ci.investorRoiPct).toBe(32);
+    // Cooperativa 30%: 660,000 * 0.30 = 198,000 Bs
+    expect(ci.cooperativePayout).toBe(198000);
+    expect(ci.cooperativeMonthlyIncome).toBe(11000);
+    expect(ci.cooperativeStatus).toBe('VERDE');
+    // Como 32% < 40% target, inversionista en AMARILLO
+    expect(ci.investorStatus).toBe('AMARILLO');
+    expect(ci.overallDealStatus).toBe('AMARILLO');
+    // Ingreso de equilibrio calculado para que inversionista logre su 40% (490k retorno):
+    expect(ci.breakEvenRevenueRequired).toBeGreaterThan(800000);
+  });
 });

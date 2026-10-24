@@ -141,6 +141,61 @@ export interface DealCalculationInput {
     businessPartnerPct?: number;// Para compatibilidad
     contingencyFundPct: number; // % Fondo de reserva / imprevistos
   };
+
+  // 10. Enfoque Especial: Inversión en Cooperativa Minera / Producción
+  cooperativeInvestment?: CooperativeInvestmentInput;
+}
+
+export type ViabilityStatus = 'VERDE' | 'AMARILLO' | 'ROJO';
+
+export interface CooperativeInvestmentInput {
+  investorCapital: number;            // Capital aportado por el inversionista (Bs)
+  durationMonths: number;             // Duración estimada del contrato/ciclo (meses)
+  investorSharePct: number;           // % de la utilidad o producción para el inversionista (ej. 70%)
+  cooperativeSharePct: number;        // % de la utilidad o producción para la cooperativa (ej. 30%)
+  operatingCostsEstimated: number;    // Costos operativos estimados del periodo (OPEX de insumos/maquinaria)
+  canonComunalPct?: number;           // % Canon comunal o aporte a la comunidad (ej. 5%)
+  targetInvestorRoiPct?: number;      // Retorno mínimo aceptable / Target ROI (%) del inversionista (ej. 40%)
+  minCooperativeIncome?: number;      // Mínimo aceptable para la cooperativa (Bs total en el periodo)
+  projectedGrossRevenue?: number;     // Ingreso proyectado por venta de mineral / producción
+}
+
+export interface CooperativeInvestmentResult {
+  investorCapital: number;
+  durationMonths: number;
+  investorSharePct: number;
+  cooperativeSharePct: number;
+  operatingCostsEstimated: number;
+  canonComunalPct: number;
+  canonComunalAmount: number;
+  projectedGrossRevenue: number;
+  netDistributableSurplus: number;    // Excedente neto a repartir (Ingreso - OPEX - Canon)
+
+  // Métricas Inversionista
+  targetInvestorRoiPct: number;       // Meta de ROI del inversionista (ej. 40%)
+  investorPayout: number;             // Retorno bruto total cobrado
+  investorNetProfit: number;          // Retorno bruto - Capital aportado
+  investorRoiPct: number;             // (investorNetProfit / investorCapital) * 100
+  investorPaybackMonths: number;      // Meses estimados para recuperar el capital aportado
+  investorMonthlyAverage: number;     // Retorno promedio mensual
+  investorStatus: ViabilityStatus;    // Semáforo inversionista
+  investorStatusMessage: string;
+
+  // Métricas Cooperativa
+  minCooperativeIncome: number;       // Meta mínima exigida por la cooperativa
+  cooperativePayout: number;          // Monto total recibido por la cooperativa
+  cooperativeMonthlyIncome: number;   // Monto promedio mensual recibido
+  cooperativeStatus: ViabilityStatus; // Semáforo cooperativa
+  cooperativeStatusMessage: string;
+
+  // Viabilidad global del acuerdo
+  overallDealStatus: ViabilityStatus;
+  overallDealMessage: string;
+
+  // Punto de equilibrio y requerimiento inverso
+  breakEvenRevenueRequired: number;   // Ingreso mínimo bruto necesario para satisfacer ambas metas
+  cooperativePayoutAtBreakEven: number;
+  investorPayoutAtBreakEven: number;
 }
 
 export interface DealCalculationResult {
@@ -268,6 +323,9 @@ export interface DealCalculationResult {
       teamNetProfitPct: number;
     };
   };
+
+  // Enfoque Cooperativa - Inversión (Métricas de Inversión, Payback y Semáforos)
+  cooperativeInvestment?: CooperativeInvestmentResult;
 }
 
 export interface DealSession {
