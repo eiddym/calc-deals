@@ -1,6 +1,30 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { DealCalculationInput, DealCalculationResult } from '@calc/shared';
 
+// Función para sanitizar cadenas para la codificación WinAnsi (Standard 14 Fonts de PDF)
+function safeText(text: string | null | undefined): string {
+  if (!text) return '';
+  return text
+    .replace(/[★☆✦✧]/g, '*')
+    .replace(/[•]/g, '-')
+    .replace(/[—–]/g, '-')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[áäà]/g, 'a')
+    .replace(/[éëè]/g, 'e')
+    .replace(/[íïì]/g, 'i')
+    .replace(/[óöò]/g, 'o')
+    .replace(/[úüù]/g, 'u')
+    .replace(/[ÁÄÀ]/g, 'A')
+    .replace(/[ÉËÈ]/g, 'E')
+    .replace(/[ÍÏÌ]/g, 'I')
+    .replace(/[ÓÖÒ]/g, 'O')
+    .replace(/[ÚÜÙ]/g, 'U')
+    .replace(/[ñ]/g, 'n')
+    .replace(/[Ñ]/g, 'N')
+    .replace(/[^\x20-\x7E]/g, ''); // ASCII puro seguro para cualquier lector de PDF
+}
+
 export async function generateDealPdf(
   input: DealCalculationInput,
   result: DealCalculationResult,
@@ -12,13 +36,14 @@ export async function generateDealPdf(
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
+  const cleanCurrency = safeText(currency);
+
   const fmt = (val: number) => {
-    return (
-      new Intl.NumberFormat('es-BO', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(val || 0) + ` ${currency}`
-    );
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(val || 0);
+    return `${formatted} ${cleanCurrency}`;
   };
 
   const { width, height } = page.getSize();
@@ -33,7 +58,7 @@ export async function generateDealPdf(
     color: rgb(0.04, 0.09, 0.18),
   });
 
-  page.drawText('DICTAMEN FINANCIERO Y AUDITORÍA PRE-FIRMA', {
+  page.drawText('DICTAMEN FINANCIERO Y AUDITORIA PRE-FIRMA', {
     x: 45,
     y: y - 20,
     size: 15,
@@ -41,7 +66,7 @@ export async function generateDealPdf(
     color: rgb(1, 1, 1),
   });
 
-  page.drawText('Mesa de Negociación, Peajes Tributarios y Reparto entre Socios (Bolivia)', {
+  page.drawText('Mesa de Negociacion, Peajes Tributarios y Reparto entre Socios (Bolivia)', {
     x: 45,
     y: y - 36,
     size: 9,
@@ -58,9 +83,9 @@ export async function generateDealPdf(
     year: 'numeric',
   });
 
-  page.drawText(`Fecha: ${dateStr}`, { x: 45, y, size: 9, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
-  page.drawText(`Modo: ${result.negotiationMode}`, { x: 200, y, size: 9, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
-  page.drawText(`Moneda: ${currency}`, { x: 400, y, size: 9, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
+  page.drawText(safeText(`Fecha: ${dateStr}`), { x: 45, y, size: 9, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
+  page.drawText(safeText(`Modo: ${result.negotiationMode}`), { x: 200, y, size: 9, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
+  page.drawText(safeText(`Moneda: ${cleanCurrency}`), { x: 400, y, size: 9, font: fontRegular, color: rgb(0.3, 0.3, 0.3) });
 
   y -= 15;
   page.drawLine({
@@ -76,8 +101,8 @@ export async function generateDealPdf(
   const cardWidth = (width - 90 - 30) / 4;
   const cards = [
     { title: 'CONTRATO BRUTO', val: fmt(result.contractGrossAmount), color: rgb(0.14, 0.38, 0.92) },
-    { title: 'LÍQUIDO EN OBRA', val: fmt(result.immediateDistributablePool), color: rgb(0.06, 0.72, 0.5) },
-    { title: 'RETENCIÓN CIERRE', val: fmt(result.deferredRetentionPool), color: rgb(0.96, 0.62, 0.05) },
+    { title: 'LIQUIDO EN OBRA', val: fmt(result.immediateDistributablePool), color: rgb(0.06, 0.72, 0.5) },
+    { title: 'RETENCION CIERRE', val: fmt(result.deferredRetentionPool), color: rgb(0.96, 0.62, 0.05) },
     { title: 'UTILIDAD NETA TOTAL', val: fmt(result.totalNetProfitPool), color: rgb(0.05, 0.58, 0.4) },
   ];
 
@@ -99,7 +124,7 @@ export async function generateDealPdf(
   y -= 55;
 
   // 4. TABLA DE LIQUIDACIÓN PRE-FIRMA (CENTAVO A CENTAVO)
-  page.drawText('1. LIQUIDACIÓN FINANCIERA Y PEAJES DEDUCIBLES', {
+  page.drawText('1. LIQUIDACION FINANCIERA Y PEAJES DEDUCIBLES', {
     x: 45,
     y,
     size: 10,
@@ -113,24 +138,24 @@ export async function generateDealPdf(
     { concept: 'Monto Bruto Ofertado (100% Contrato)', rate: '100.0%', amount: fmt(result.contractGrossAmount), isTotal: false, isNeg: false },
     { concept: `(-) Carga Fiscal IVA/IT ${result.taxes.type}`, rate: `-${result.taxes.effectiveRatePct}%`, amount: `-${fmt(result.taxes.taxAmount)}`, isTotal: false, isNeg: true },
     ...(result.iue.enabled && result.iue.payer === 'PROYECTO'
-      ? [{ concept: '(-) Previsión Anual IUE 25% (Proyecto)', rate: '25.0%', amount: `-${fmt(result.iue.deductedFromProjectPool)}`, isTotal: false, isNeg: true }]
+      ? [{ concept: '(-) Prevision Anual IUE 25% (Proyecto)', rate: '25.0%', amount: `-${fmt(result.iue.deductedFromProjectPool)}`, isTotal: false, isNeg: true }]
       : []),
-    { concept: '(-) Boletas y Pólizas Bancarias (Primas)', rate: `-${result.summaryMetrics.effectiveTakeRates.guaranteesPct}%`, amount: `-${fmt(result.guarantees.totalGuaranteesCost)}`, isTotal: false, isNeg: true },
-    { concept: '(-) Diezmo / Comisión de Adjudicación', rate: `-${result.commission.effectivePctOfGross}%`, amount: `-${fmt(result.commission.amount)}`, isTotal: false, isNeg: true },
-    { concept: '(-) Fee Empresa Titular (Presta-Nombre / NIT)', rate: `-${result.titularCompany.effectivePctOfGross}%`, amount: `-${fmt(result.titularCompany.amount)}`, isTotal: false, isNeg: true },
+    { concept: '(-) Boletas y Polizas Bancarias (Primas)', rate: `-${result.summaryMetrics.effectiveTakeRates.guaranteesPct}%`, amount: `-${fmt(result.guarantees.totalGuaranteesCost)}`, isTotal: false, isNeg: true },
+    { concept: '(-) Diezmo / Comision de Adjudicacion', rate: `-${result.commission.effectivePctOfGross}%`, amount: `-${fmt(result.commission.amount)}`, isTotal: false, isNeg: true },
+    { concept: `(-) Fee Empresa Titular (${safeText(result.titularCompany.name || 'NIT/Firma')})`, rate: `-${result.titularCompany.effectivePctOfGross}%`, amount: `-${fmt(result.titularCompany.amount)}`, isTotal: false, isNeg: true },
     { concept: '(-) Personal y Cargas Sociales (Staffing)', rate: `-${result.summaryMetrics.effectiveTakeRates.personnelPct}%`, amount: `-${fmt(result.staffing.totalPersonnelCost)}`, isTotal: false, isNeg: true },
-    { concept: '(-) Gastos Operativos y Logística Directa', rate: `-${result.summaryMetrics.effectiveTakeRates.directCostsPct}%`, amount: `-${fmt(result.directCosts.total)}`, isTotal: false, isNeg: true },
+    { concept: '(-) Gastos Operativos y Logistica Directa', rate: `-${result.summaryMetrics.effectiveTakeRates.directCostsPct}%`, amount: `-${fmt(result.directCosts.total)}`, isTotal: false, isNeg: true },
     ...(!result.statutoryDeduction.isRecoverable && result.statutoryDeduction.amount > 0
       ? [{ concept: '(-) Aporte No Recuperable a Caja de Salud', rate: `-${result.statutoryDeduction.ratePct}%`, amount: `-${fmt(result.statutoryDeduction.amount)}`, isTotal: false, isNeg: true }]
       : []),
-    { concept: '(=) UTILIDAD NETA DEL EQUIPO TÉCNICO', rate: `${result.summaryMetrics.effectiveTakeRates.teamNetProfitPct}%`, amount: fmt(result.totalNetProfitPool), isTotal: true, isNeg: false },
+    { concept: '(=) UTILIDAD NETA DEL EQUIPO TECNICO', rate: `${result.summaryMetrics.effectiveTakeRates.teamNetProfitPct}%`, amount: fmt(result.totalNetProfitPool), isTotal: true, isNeg: false },
     ...(result.statutoryDeduction.isRecoverable && result.statutoryDeduction.amount > 0
-      ? [{ concept: '(-) Retención Diferida (Cobro al Cierre / Acta Definitiva)', rate: `-${result.statutoryDeduction.ratePct}%`, amount: `-${fmt(result.deferredRetentionPool)}`, isTotal: false, isNeg: true }]
+      ? [{ concept: '(-) Retencion Diferida (Cobro al Cierre / Acta Definitiva)', rate: `-${result.statutoryDeduction.ratePct}%`, amount: `-${fmt(result.deferredRetentionPool)}`, isTotal: false, isNeg: true }]
       : []),
-    { concept: '(★) LÍQUIDO DISPONIBLE EN EJECUCIÓN', rate: `${result.contractGrossAmount > 0 ? ((result.immediateDistributablePool / result.contractGrossAmount) * 100).toFixed(1) : 0}%`, amount: fmt(result.immediateDistributablePool), isTotal: true, isNeg: false },
+    { concept: '(*) LIQUIDO DISPONIBLE EN EJECUCION', rate: `${result.contractGrossAmount > 0 ? ((result.immediateDistributablePool / result.contractGrossAmount) * 100).toFixed(1) : 0}%`, amount: fmt(result.immediateDistributablePool), isTotal: true, isNeg: false },
   ];
 
-  tableRows.forEach((row, i) => {
+  tableRows.forEach((row) => {
     if (row.isTotal) {
       page.drawRectangle({
         x: 43,
@@ -141,7 +166,7 @@ export async function generateDealPdf(
       });
     }
 
-    page.drawText(row.concept, {
+    page.drawText(safeText(row.concept), {
       x: 45,
       y,
       size: row.isTotal ? 7.5 : 7,
@@ -149,7 +174,7 @@ export async function generateDealPdf(
       color: row.isTotal ? rgb(0.05, 0.45, 0.3) : rgb(0.2, 0.2, 0.2),
     });
 
-    page.drawText(row.rate, {
+    page.drawText(safeText(row.rate), {
       x: 380,
       y,
       size: 7,
@@ -157,7 +182,7 @@ export async function generateDealPdf(
       color: row.isNeg ? rgb(0.85, 0.15, 0.15) : rgb(0.3, 0.3, 0.3),
     });
 
-    page.drawText(row.amount, {
+    page.drawText(safeText(row.amount), {
       x: 470,
       y,
       size: row.isTotal ? 8 : 7,
@@ -172,7 +197,7 @@ export async function generateDealPdf(
 
   // 5. ANÁLISIS DE VARIANZA DE EMPRESA PRESTA-NOMBRE
   if (result.titularCompany.enabled) {
-    page.drawText('2. ANÁLISIS DE VARIANZA: EMPRESA PRESTA-NOMBRE', {
+    page.drawText('2. ANALISIS DE VARIANZA: EMPRESA PRESTA-NOMBRE', {
       x: 45,
       y,
       size: 10,
@@ -195,16 +220,16 @@ export async function generateDealPdf(
 
     const v = result.titularCompany.varianceAnalysis;
     const condText = result.titularCompany.absorbsTaxes
-      ? 'Condición Actual: La Empresa Titular ABSORBE los impuestos (IVA/IT e IUE).'
-      : 'Condición Actual: El Equipo Técnico ABSORBE los impuestos del contrato.';
+      ? 'Condicion Actual: La Empresa Titular ABSORBE los impuestos (IVA/IT e IUE).'
+      : 'Condicion Actual: El Equipo Tecnico ABSORBE los impuestos del contrato.';
 
-    page.drawText(condText, { x: 55, y: varBoxY + 25, size: 7.5, font: fontBold, color: rgb(0.1, 0.25, 0.6) });
+    page.drawText(safeText(condText), { x: 55, y: varBoxY + 25, size: 7.5, font: fontBold, color: rgb(0.1, 0.25, 0.6) });
     page.drawText(
-      `Si Titular Asume: Ganancia Equipo = ${fmt(v.ifTitularAbsorbsTaxes.teamNetGain)} (${v.ifTitularAbsorbsTaxes.effectiveMargin}%) | Si Equipo Asume: ${fmt(v.ifTeamAbsorbsTaxes.teamNetGain)} (${v.ifTeamAbsorbsTaxes.effectiveMargin}%)`,
+      safeText(`Si Titular Asume: Ganancia Equipo = ${fmt(v.ifTitularAbsorbsTaxes.teamNetGain)} (${v.ifTitularAbsorbsTaxes.effectiveMargin}%) | Si Equipo Asume: ${fmt(v.ifTeamAbsorbsTaxes.teamNetGain)} (${v.ifTeamAbsorbsTaxes.effectiveMargin}%)`),
       { x: 55, y: varBoxY + 12, size: 7, font: fontRegular, color: rgb(0.3, 0.3, 0.3) }
     );
     page.drawText(
-      `Varianza / Diferencia en juego en la negociación: ${fmt(v.taxBurdenDifference)}`,
+      safeText(`Varianza / Diferencia en juego en la negociacion: ${fmt(v.taxBurdenDifference)}`),
       { x: 55, y: varBoxY + 2, size: 7, font: fontBold, color: rgb(0.85, 0.2, 0.2) }
     );
 
@@ -234,38 +259,41 @@ export async function generateDealPdf(
   page.drawText('Socio / Participante', { x: 48, y, size: 7, font: fontBold, color: rgb(1, 1, 1) });
   page.drawText('Rol', { x: 190, y, size: 7, font: fontBold, color: rgb(1, 1, 1) });
   page.drawText('%', { x: 290, y, size: 7, font: fontBold, color: rgb(1, 1, 1) });
-  page.drawText('Líquido en Obra', { x: 335, y, size: 7, font: fontBold, color: rgb(1, 1, 1) });
+  page.drawText('Liquido en Obra', { x: 335, y, size: 7, font: fontBold, color: rgb(1, 1, 1) });
   page.drawText('Cobro al Cierre', { x: 420, y, size: 7, font: fontBold, color: rgb(1, 1, 1) });
   page.drawText('Total Ganancia', { x: 495, y, size: 7, font: fontBold, color: rgb(1, 1, 1) });
 
   y -= 15;
 
   result.distribution.partners.forEach((partner) => {
-    page.drawText(partner.name, { x: 48, y, size: 7, font: fontBold, color: rgb(0.1, 0.1, 0.1) });
-    page.drawText(partner.role, { x: 190, y, size: 6.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
+    page.drawText(safeText(partner.name), { x: 48, y, size: 7, font: fontBold, color: rgb(0.1, 0.1, 0.1) });
+    page.drawText(safeText(partner.role), { x: 190, y, size: 6.5, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
     page.drawText(`${partner.pct}%`, { x: 290, y, size: 7, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText(fmt(partner.immediateAmount), { x: 335, y, size: 7, font: fontRegular, color: rgb(0.06, 0.5, 0.35) });
-    page.drawText(fmt(partner.deferredAmount), { x: 420, y, size: 7, font: fontRegular, color: rgb(0.8, 0.5, 0.05) });
-    page.drawText(fmt(partner.totalAmount), { x: 495, y, size: 7, font: fontBold, color: rgb(0.05, 0.45, 0.3) });
+    page.drawText(safeText(fmt(partner.immediateAmount)), { x: 335, y, size: 7, font: fontRegular, color: rgb(0.06, 0.5, 0.35) });
+    page.drawText(safeText(fmt(partner.deferredAmount)), { x: 420, y, size: 7, font: fontRegular, color: rgb(0.8, 0.5, 0.05) });
+    page.drawText(safeText(fmt(partner.totalAmount)), { x: 495, y, size: 7, font: fontBold, color: rgb(0.05, 0.45, 0.3) });
 
     y -= 14;
   });
 
   if (result.distribution.contingencyFund.amount > 0) {
-    page.drawText(`Fondo de Reserva e Imprevistos (${result.distribution.contingencyFund.pct}%): ${fmt(result.distribution.contingencyFund.amount)}`, {
-      x: 48,
-      y,
-      size: 7,
-      font: fontRegular,
-      color: rgb(0.5, 0.5, 0.5),
-    });
+    page.drawText(
+      safeText(`Fondo de Reserva e Imprevistos (${result.distribution.contingencyFund.pct}%): ${fmt(result.distribution.contingencyFund.amount)}`),
+      {
+        x: 48,
+        y,
+        size: 7,
+        font: fontRegular,
+        color: rgb(0.5, 0.5, 0.5),
+      }
+    );
     y -= 14;
   }
 
   y -= 25;
 
   // 7. FIRMAS DE CONFORMIDAD
-  page.drawText('4. FIRMAS DE CONFORMIDAD Y RATIFICACIÓN PRE-FIRMA', {
+  page.drawText('4. FIRMAS DE CONFORMIDAD Y RATIFICACION PRE-FIRMA', {
     x: 45,
     y,
     size: 10,
@@ -289,7 +317,7 @@ export async function generateDealPdf(
       color: rgb(0.4, 0.4, 0.4),
     });
 
-    page.drawText(partner.name, {
+    page.drawText(safeText(partner.name), {
       x: sx,
       y: sy + 2,
       size: 7,
@@ -297,7 +325,7 @@ export async function generateDealPdf(
       color: rgb(0.1, 0.1, 0.1),
     });
 
-    page.drawText(`C.I. / NIT: _______________`, {
+    page.drawText('C.I. / NIT: _______________', {
       x: sx,
       y: sy - 10,
       size: 6,
