@@ -109,6 +109,10 @@ export function CalculatorView() {
 
   const [targetDesiredProfit, setTargetDesiredProfit] = useState<number>(0);
 
+  // Duración del contrato (para métricas por día/mes, especialmente en modo Independiente)
+  const [contractDurationValue, setContractDurationValue] = useState<number>(1);
+  const [contractDurationUnit, setContractDurationUnit] = useState<'days' | 'weeks' | 'months'>('months');
+
   // Notificación tipo toast temporal
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -235,6 +239,18 @@ export function CalculatorView() {
       }).format(val || 0) + ` ${currency}`
     );
   };
+
+  // Duración en días equivalentes
+  const durationInDays = useMemo(() => {
+    const v = Math.max(1, contractDurationValue || 1);
+    if (contractDurationUnit === 'days') return v;
+    if (contractDurationUnit === 'weeks') return v * 7;
+    return v * 30; // months approx
+  }, [contractDurationValue, contractDurationUnit]);
+
+  const durationInMonths = useMemo(() => {
+    return durationInDays / 30;
+  }, [durationInDays]);
 
   // Manejo de Socios Dinámicos
   const addPartner = (roleName?: string) => {
@@ -477,7 +493,12 @@ export function CalculatorView() {
           <div className={styles.modeSelectorContainer}>
             <div className={styles.modeHeaderRow}>
               <span className={styles.modeLabel}>Modo de Negociación:</span>
-              <span className={styles.modeBadge}>{input.negotiationMode?.replace('_', ' ')}</span>
+              <span className={styles.modeBadge}>
+                {input.negotiationMode === 'FORMAL_LICITACION' && 'Empresa / Licitación'}
+                {input.negotiationMode === 'SOCIOS_INTERNO' && 'Prestanombre A-B'}
+                {input.negotiationMode === 'COOPERATIVA_INVERSION' && 'Cooperativa'}
+                {input.negotiationMode === 'SIMPLIFICADO' && 'Consultor Independiente'}
+              </span>
             </div>
             <div className={styles.modeGrid}>
               <button
@@ -485,32 +506,32 @@ export function CalculatorView() {
                 className={`${styles.modeBtn} ${input.negotiationMode === 'FORMAL_LICITACION' ? styles.modeBtnActive : ''}`}
                 onClick={() => handleModeChange('FORMAL_LICITACION')}
               >
-                <span className={styles.modeBtnTitle}>🏛️ Licitación SICOES</span>
-                <span className={styles.modeBtnSubtitle}>16% IVA/IT + Boletas + IUE</span>
+                <span className={styles.modeBtnTitle}>🏛️ Empresa / Licitación</span>
+                <span className={styles.modeBtnSubtitle}>Escenario 2 · Impuestos + IUE</span>
               </button>
               <button
                 type="button"
                 className={`${styles.modeBtn} ${input.negotiationMode === 'SOCIOS_INTERNO' ? styles.modeBtnActive : ''}`}
                 onClick={() => handleModeChange('SOCIOS_INTERNO')}
               >
-                <span className={styles.modeBtnTitle}>🤝 Socios Interno</span>
-                <span className={styles.modeBtnSubtitle}>Sin factura + Reparto</span>
+                <span className={styles.modeBtnTitle}>🤝 Prestanombre A-B</span>
+                <span className={styles.modeBtnSubtitle}>Escenario 1 · Negociación justa</span>
               </button>
               <button
                 type="button"
                 className={`${styles.modeBtn} ${input.negotiationMode === 'COOPERATIVA_INVERSION' ? styles.modeBtnActive : ''}`}
                 onClick={() => handleModeChange('COOPERATIVA_INVERSION')}
               >
-                <span className={styles.modeBtnTitle}>⛏️ Cooperativa</span>
-                <span className={styles.modeBtnSubtitle}>Canon + Retención Ley</span>
+                <span className={styles.modeBtnTitle}>⛏️ Cooperativa / Inversión</span>
+                <span className={styles.modeBtnSubtitle}>Canon · Comunidad</span>
               </button>
               <button
                 type="button"
                 className={`${styles.modeBtn} ${input.negotiationMode === 'SIMPLIFICADO' ? styles.modeBtnActive : ''}`}
                 onClick={() => handleModeChange('SIMPLIFICADO')}
               >
-                <span className={styles.modeBtnTitle}>⚡ Simplificado</span>
-                <span className={styles.modeBtnSubtitle}>Cotización rápida campo</span>
+                <span className={styles.modeBtnTitle}>👤 Consultor Independiente</span>
+                <span className={styles.modeBtnSubtitle}>Escenario 3 · Neto por día</span>
               </button>
             </div>
           </div>
@@ -649,8 +670,81 @@ export function CalculatorView() {
               ========================================================= */}
           {activeTab === 'resumen' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* BANNER CONTEXTUAL SEGÚN ESCENARIO */}
+              {input.negotiationMode === 'SOCIOS_INTERNO' && (
+                <div style={{ background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '12px', padding: '0.85rem 1rem' }}>
+                  <strong style={{ color: '#60a5fa' }}>Escenario 1 · Prestanombre</strong>
+                  <p style={{ margin: '0.3rem 0 0', fontSize: '0.82rem', color: '#cbd5e1' }}>
+                    A negocia su parte. B (titular) debe ver si el trato es justo después de asumir boletas, impuestos e IUE.
+                  </p>
+                </div>
+              )}
+              {input.negotiationMode === 'FORMAL_LICITACION' && (
+                <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '12px', padding: '0.85rem 1rem' }}>
+                  <strong style={{ color: '#34d399' }}>Escenario 2 · Empresa / Licitación</strong>
+                  <p style={{ margin: '0.3rem 0 0', fontSize: '0.82rem', color: '#cbd5e1' }}>
+                    Evalúa si la empresa se queda con el proyecto después de todos los costos, boletas e IUE.
+                  </p>
+                </div>
+              )}
+              {input.negotiationMode === 'SIMPLIFICADO' && (
+                <div style={{ background: 'rgba(251, 191, 36, 0.12)', border: '1px solid rgba(251, 191, 36, 0.3)', borderRadius: '12px', padding: '0.85rem 1rem' }}>
+                  <strong style={{ color: '#fbbf24' }}>Escenario 3 · Consultor Independiente</strong>
+                  <p style={{ margin: '0.3rem 0 0', fontSize: '0.82rem', color: '#cbd5e1' }}>
+                    Sin IUE. Activa solo lo que aplica. Mira cuánto te queda limpio y el neto por día según la duración.
+                  </p>
+                </div>
+              )}
+
               {/* GRÁFICAS INTERACTIVAS ECHARTS (WATERFALL + DONUT) */}
               <DealCharts result={result} currency={currency} />
+
+              {/* DURACIÓN DEL CONTRATO + MÉTRICAS POR TIEMPO */}
+              <div className={styles.reverseWidget} style={{ marginTop: '0.5rem' }}>
+                <div className={styles.reverseWidgetHeader}>
+                  <span className={styles.reverseTitle}>⏱️ Duración del Contrato</span>
+                  <span style={{ fontSize: '0.725rem', color: '#93c5fd' }}>Para neto por día / mes</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="number"
+                    min={1}
+                    className={styles.darkInput}
+                    style={{ width: '100px' }}
+                    value={contractDurationValue}
+                    onChange={(e) => setContractDurationValue(Math.max(1, Number(e.target.value) || 1))}
+                  />
+                  <select
+                    className={styles.darkInput}
+                    style={{ width: '140px' }}
+                    value={contractDurationUnit}
+                    onChange={(e) => setContractDurationUnit(e.target.value as any)}
+                  >
+                    <option value="days">Días</option>
+                    <option value="weeks">Semanas</option>
+                    <option value="months">Meses</option>
+                  </select>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                    ≈ {Math.round(durationInDays)} días · {durationInMonths.toFixed(1)} meses
+                  </span>
+                </div>
+                {hasContractAmount && result.distribution.projectManager && (
+                  <div style={{ marginTop: '0.75rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Neto por día</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#34d399' }}>
+                        {fmt(result.distribution.projectManager.totalAmount / durationInDays)}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Neto por mes</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#34d399' }}>
+                        {fmt(result.distribution.projectManager.totalAmount / Math.max(0.1, durationInMonths))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Tarjetas de Reparto por Socio */}
               <div className={styles.partnerCardGrid}>
