@@ -11,9 +11,7 @@ import { DealSessionsService } from './deal-sessions.service';
 
 @Controller('deal-sessions')
 export class DealSessionsController {
-  constructor(
-    private readonly dealSessionsService: DealSessionsService,
-  ) {}
+  constructor(private readonly dealSessionsService: DealSessionsService) {}
 
   @Post()
   create(@Body() dto: CreateDealSessionDto) {

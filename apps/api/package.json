@@ -68,6 +68,10 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "moduleNameMapper": {
+      "^@calc/shared$": "<rootDir>/../../../packages/shared/src/index.ts",
+      "^@calc/shared/(.*)$": "<rootDir>/../../../packages/shared/src/$1"
+    },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

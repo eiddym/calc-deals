@@ -1,0 +1,63 @@
+services:
+  calc_db:
+    image: postgres:16-alpine
+    container_name: calc-deals-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-calc_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-calc_deals}
+    ports:
+      - "${DB_PORT:-5434}:5432"
+    volumes:
+      - calc_deals_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-calc_user} -d ${POSTGRES_DB:-calc_deals}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - calc_network
+
+  calc_api:
+    build:
+      context: ../../
+      dockerfile: apps/api/Dockerfile
+    container_name: calc-deals-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-calc_user}:${POSTGRES_PASSWORD:-postgres}@calc_db:5432/${POSTGRES_DB:-calc_deals}?schema=public
+      PORT: 3001
+    ports:
+      - "${API_PORT:-3001}:3001"
+    depends_on:
+      calc_db:
+        condition: service_healthy
+    networks:
+      - calc_network
+
+  calc_web:
+    build:
+      context: ../../
+      dockerfile: apps/web/Dockerfile
+    container_name: calc-deals-web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      API_URL: http://calc_api:3001
+      PORT: 3000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - calc_api
+    networks:
+      - calc_network
+
+volumes:
+  calc_deals_pgdata:
+    name: calc_deals_pgdata
+
+networks:
+  calc_network:
+    name: calc_deals_network
+    driver: bridge
