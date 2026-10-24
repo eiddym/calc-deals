@@ -5,17 +5,19 @@ import {
   calculateDeal,
   DealCalculationInput,
   DealNegotiationMode,
+  DealPartner,
   DirectCostItem,
-  IuePayerType,
   StaffAssignment,
   TaxScenarioType,
 } from '@calc/shared';
+import { DealCharts } from './DealCharts';
+import { generateDealPdf } from '../utils/pdfExport';
 import styles from './Calculator.module.css';
 
 type CurrencyType = 'Bs' | 'USD';
 type TabKey = 'resumen' | 'negociacion' | 'costos' | 'reparto' | 'detalle';
 
-// Presets de roles rápidos de personal
+// Presets de roles rápidos de personal para cuadrilla
 const STAFF_PRESETS: Array<{
   role: string;
   monthlySalary: number;
@@ -35,12 +37,19 @@ export function CalculatorView() {
   const [currency, setCurrency] = useState<CurrencyType>('Bs');
   const [activeTab, setActiveTab] = useState<TabKey>('resumen');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
 
   // Control de habilitación de impuestos (única regla normativa de base con opción de activación)
   const [taxEnabled, setTaxEnabled] = useState<boolean>(true);
   const [selectedTaxType, setSelectedTaxType] = useState<TaxScenarioType>('CON_FACTURA');
   const [customTaxRate, setCustomTaxRate] = useState<number>(16);
   const [taxCreditPct, setTaxCreditPct] = useState<number>(0);
+
+  // Lista dinámica de socios (multi-socio personalizable)
+  const [partners, setPartners] = useState<DealPartner[]>([
+    { id: '1', name: 'Ingeniero Residente', role: 'Proyectista / Técnico', pct: 60 },
+    { id: '2', name: 'Socio Gestor', role: 'Comercial / Contacto', pct: 40 },
+  ]);
 
   // Estado limpio: Sin montos hardcodeados (contrato y gastos inician en 0)
   const [input, setInput] = useState<DealCalculationInput>({
@@ -79,10 +88,13 @@ export function CalculatorView() {
       isTaxDeductible: false,
     },
     titularCompany: {
+      enabled: false,
+      name: '',
       type: 'PERCENTAGE_GROSS',
       value: 0,
+      absorbsTaxes: false,
       absorbsGuaranteesCost: false,
-      absorbsIueCost: false,
+      absorbsAdminExpenses: false,
     },
     staffing: {
       assignments: [],
@@ -91,8 +103,6 @@ export function CalculatorView() {
       items: [],
     },
     distribution: {
-      projectManagerPct: 100,
-      businessPartnerPct: 0,
       contingencyFundPct: 0,
     },
   });
@@ -143,6 +153,7 @@ export function CalculatorView() {
         },
         titularCompany: {
           ...prev.titularCompany,
+          enabled: false,
           value: 0,
         },
       }));
@@ -185,7 +196,7 @@ export function CalculatorView() {
     }
   };
 
-  // Input computado reactivamente con los toggles fiscales
+  // Input computado reactivamente con los toggles fiscales y la lista de socios
   const activeInput: DealCalculationInput = useMemo(() => {
     return {
       ...input,
@@ -194,8 +205,12 @@ export function CalculatorView() {
         customRatePct: customTaxRate,
         taxCreditPct: taxEnabled && selectedTaxType === 'CON_FACTURA' ? taxCreditPct : 0,
       },
+      distribution: {
+        ...input.distribution,
+        partners,
+      },
     };
-  }, [input, taxEnabled, selectedTaxType, customTaxRate, taxCreditPct]);
+  }, [input, taxEnabled, selectedTaxType, customTaxRate, taxCreditPct, partners]);
 
   // Motor financiero puro con precisión decimal.js
   const result = useMemo(() => {
@@ -221,8 +236,48 @@ export function CalculatorView() {
     );
   };
 
+  // Manejo de Socios Dinámicos
+  const addPartner = (roleName?: string) => {
+    const newPartner: DealPartner = {
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
+      name: `Socio ${partners.length + 1}`,
+      role: roleName || 'Participante',
+      pct: 0,
+    };
+    setPartners([...partners, newPartner]);
+  };
+
+  const updatePartner = (id: string, updates: Partial<DealPartner>) => {
+    setPartners(partners.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+  };
+
+  const deletePartner = (id: string) => {
+    if (partners.length <= 1) return;
+    setPartners(partners.filter((p) => p.id !== id));
+  };
+
+  const splitPartnersEqually = () => {
+    if (partners.length === 0) return;
+    const rem = Math.max(0, 100 - (input.distribution.contingencyFundPct || 0));
+    const equalPct = Math.floor(rem / partners.length);
+    const remainder = rem - equalPct * partners.length;
+    setPartners(
+      partners.map((p, idx) => ({
+        ...p,
+        pct: idx === 0 ? equalPct + remainder : equalPct,
+      }))
+    );
+  };
+
+  const totalPartnerPct = useMemo(() => {
+    return (
+      partners.reduce((sum, p) => sum + (Number(p.pct) || 0), 0) +
+      (Number(input.distribution.contingencyFundPct) || 0)
+    );
+  }, [partners, input.distribution.contingencyFundPct]);
+
   // Manejo de Staffing / Personal
-  const addStaffRole = (preset?: typeof STAFF_PRESETS[0]) => {
+  const addStaffRole = (preset?: (typeof STAFF_PRESETS)[0]) => {
     const newStaff: StaffAssignment = {
       id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
       role: preset?.role || '',
@@ -309,6 +364,20 @@ export function CalculatorView() {
 
   const hasContractAmount = (input.contractGrossAmount || 0) > 0;
 
+  // Descarga del Dictamen PDF
+  const handleDownloadPdf = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      await generateDealPdf(activeInput, result, currency);
+      showToast('✓ Dictamen PDF generado con éxito');
+    } catch (err) {
+      console.error('Error generando PDF:', err);
+      showToast('Error generando PDF');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   // Copiar resumen de negociación al portapapeles para WhatsApp
   const handleCopySummary = () => {
     const lines = [
@@ -317,12 +386,12 @@ export function CalculatorView() {
       `📌 *Modo:* ${input.negotiationMode}`,
       `💰 *Monto Contrato:* ${fmtPrecise(result.contractGrossAmount)}`,
       ``,
-      `📉 *DEDUCCIONES Y COSTOS:*`,
+      `📉 *DEDUCCIONES Y PEAJES:*`,
       `• Impuestos (IVA/IT): -${fmtPrecise(result.taxes.taxAmount)} (${result.taxes.effectiveRatePct}%)`,
       result.iue.enabled ? `• IUE (25% ${result.iue.payer}): -${fmtPrecise(result.iue.deductedFromProjectPool)}` : null,
       result.guarantees.totalGuaranteesCost > 0 ? `• Boletas / Pólizas: -${fmtPrecise(result.guarantees.totalGuaranteesCost)}` : null,
       result.commission.amount > 0 ? `• Diezmo / Comisión: -${fmtPrecise(result.commission.amount)} (${result.commission.effectivePctOfGross}%)` : null,
-      result.titularCompany.amount > 0 ? `• Fee Empresa Titular: -${fmtPrecise(result.titularCompany.amount)} (${result.titularCompany.effectivePctOfGross}%)` : null,
+      result.titularCompany.enabled ? `• Fee Empresa Titular: -${fmtPrecise(result.titularCompany.amount)} (${result.titularCompany.effectivePctOfGross}%)` : null,
       result.staffing.totalPersonnelCost > 0 ? `• Personal / Staffing: -${fmtPrecise(result.staffing.totalPersonnelCost)}` : null,
       result.directCosts.total > 0 ? `• Gastos Directos: -${fmtPrecise(result.directCosts.total)}` : null,
       ``,
@@ -331,11 +400,10 @@ export function CalculatorView() {
       `💧 *Líquido Inmediato:* ${fmtPrecise(result.immediateDistributablePool)}`,
       result.deferredRetentionPool > 0 ? `⏳ *Retención al Cierre:* ${fmtPrecise(result.deferredRetentionPool)}` : null,
       ``,
-      `⚖️ *REPARTO:*`,
-      `• *Proyectista (${input.distribution.projectManagerPct}%):* ${fmtPrecise(result.distribution.projectManager.totalAmount)} (Líquido: ${fmtPrecise(result.distribution.projectManager.immediateAmount)})`,
-      input.distribution.businessPartnerPct > 0
-        ? `• *Socio Gestor (${input.distribution.businessPartnerPct}%):* ${fmtPrecise(result.distribution.businessPartner.totalAmount)} (Líquido: ${fmtPrecise(result.distribution.businessPartner.immediateAmount)})`
-        : null,
+      `⚖️ *REPARTO ENTRE SOCIOS:*`,
+      ...result.distribution.partners.map(
+        (p) => `• *${p.name} (${p.pct}%):* ${fmtPrecise(p.totalAmount)} (Líquido: ${fmtPrecise(p.immediateAmount)} | Cierre: ${fmtPrecise(p.deferredAmount)})`
+      ),
       `━━━━━━━━━━━━━━━━━━━━━━━━`,
       `Generado con *Calc Deals Desk* (Bolivia)`,
     ]
@@ -367,15 +435,24 @@ export function CalculatorView() {
               <div>
                 <h1 className={styles.brandTitle}>Calculadora de Negociación y Reparto</h1>
                 <p className={styles.brandSubtitle}>
-                  Ingeniería de costos y liquidación pre-firma de proyectos y licitaciones en Bolivia.
+                  Ingeniería de costos, peajes y liquidación pre-firma de proyectos y licitaciones en Bolivia.
                 </p>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               {toastMessage && <div className={styles.toastPill}>{toastMessage}</div>}
+              <button
+                type="button"
+                className={styles.pdfBtn}
+                onClick={handleDownloadPdf}
+                disabled={isGeneratingPdf}
+                title="Generar dictamen ejecutivo pre-firma en PDF"
+              >
+                <span>{isGeneratingPdf ? '⏳ Generando...' : '📄 Dictamen PDF'}</span>
+              </button>
               <button type="button" className={styles.exportBtn} onClick={handleCopySummary} title="Copiar resumen para WhatsApp">
-                <span>📋 Copiar WhatsApp</span>
+                <span>📋 WhatsApp</span>
               </button>
               <div className={styles.currencySwitch}>
                 <button
@@ -466,7 +543,7 @@ export function CalculatorView() {
               className={`${styles.navTabBtn} ${activeTab === 'reparto' ? styles.navTabBtnActive : ''}`}
               onClick={() => setActiveTab('reparto')}
             >
-              <span>⚖️ Reparto</span>
+              <span>⚖️ Reparto ({partners.length} socios)</span>
             </button>
             <button
               type="button"
@@ -482,25 +559,28 @@ export function CalculatorView() {
             THE 4 HERO NUMBERS (SIEMPRE VISIBLES COMO HUD EJECUTIVO)
             ========================================================= */}
         <section className={styles.metricsGrid}>
-          {/* Hero: Proyectista Real Gain */}
+          {/* Hero: Proyectista / Primer Socio Real Gain */}
           <div className={styles.heroMetricCard}>
             <div className={styles.metricEyebrow}>
-              <span>Ganancia Proyectista</span>
+              <span>{partners[0]?.name || 'Ganancia Proyectista'}</span>
               {hasContractAmount && (
                 <span className={styles.highlightPill}>
-                  {result.distribution.projectManager.effectiveMarginOnGross}% margen
+                  {result.distribution.partners[0]?.effectiveMarginOnGross || 0}% margen
                 </span>
               )}
             </div>
             <div className={styles.heroValue}>
-              {hasContractAmount ? fmt(result.distribution.projectManager.totalAmount) : `0 ${currency}`}
+              {hasContractAmount ? fmt(result.distribution.partners[0]?.totalAmount || 0) : `0 ${currency}`}
             </div>
             <div className={styles.metricSubtext}>
               {hasContractAmount ? (
                 <span>
-                  Líquido: <strong>{fmt(result.distribution.projectManager.immediateAmount)}</strong>
+                  Líquido: <strong>{fmt(result.distribution.partners[0]?.immediateAmount || 0)}</strong>
                   {result.deferredRetentionPool > 0 && (
-                    <span style={{ color: '#fbbf24' }}> | Cierre: {fmt(result.distribution.projectManager.deferredAmount)}</span>
+                    <span style={{ color: '#fbbf24' }}>
+                      {' '}
+                      | Cierre: {fmt(result.distribution.partners[0]?.deferredAmount || 0)}
+                    </span>
                   )}
                 </span>
               ) : (
@@ -565,153 +645,100 @@ export function CalculatorView() {
             ========================================================= */}
         <main>
           {/* =========================================================
-              TAB 1: 📊 RESUMEN (PANORAMA EJECUTIVO & ABSORCIÓN)
+              TAB 1: 📊 RESUMEN (PANORAMA EJECUTIVO & GRÁFICAS ECHARTS)
               ========================================================= */}
           {activeTab === 'resumen' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {/* Tarjetas de Reparto Proyectista vs Socio */}
-              <div className={styles.partnerCardGrid}>
-                {/* Proyectista */}
-                <div className={`${styles.partnerTile} ${styles.partnerTileProyectista}`}>
-                  <span className={styles.partnerRoleBadge}>Proyectista (Técnico / Responsable)</span>
-                  <span className={styles.partnerSumTotal}>
-                    {fmt(result.distribution.projectManager.totalAmount)}
-                  </span>
-                  <div className={styles.partnerFlowRow}>
-                    <span>Líquido Obra:</span>
-                    <span style={{ color: '#34d399', fontWeight: 700 }}>
-                      {fmt(result.distribution.projectManager.immediateAmount)}
-                    </span>
-                  </div>
-                  {result.deferredRetentionPool > 0 && (
-                    <div className={styles.partnerFlowRow}>
-                      <span>Al Cierre (Recepción):</span>
-                      <span style={{ color: '#fbbf24' }}>
-                        {fmt(result.distribution.projectManager.deferredAmount)}
-                      </span>
-                    </div>
-                  )}
-                  {hasContractAmount && (
-                    <div style={{ fontSize: '0.725rem', color: '#10b981', marginTop: '0.2rem', fontWeight: 700 }}>
-                      Margen real: {result.distribution.projectManager.effectiveMarginOnGross}% del bruto
-                    </div>
-                  )}
-                </div>
+              {/* GRÁFICAS INTERACTIVAS ECHARTS (WATERFALL + DONUT) */}
+              <DealCharts result={result} currency={currency} />
 
-                {/* Socio Gestor */}
-                <div className={`${styles.partnerTile} ${styles.partnerTileGestor}`}>
-                  <span className={styles.partnerRoleBadge}>Socio / Gestor Comercial</span>
-                  <span className={styles.partnerSumTotal}>
-                    {fmt(result.distribution.businessPartner.totalAmount)}
-                  </span>
-                  <div className={styles.partnerFlowRow}>
-                    <span>Líquido Obra:</span>
-                    <span style={{ color: '#60a5fa', fontWeight: 700 }}>
-                      {fmt(result.distribution.businessPartner.immediateAmount)}
+              {/* Tarjetas de Reparto por Socio */}
+              <div className={styles.partnerCardGrid}>
+                {result.distribution.partners.map((partner, index) => (
+                  <div
+                    key={partner.id}
+                    className={`${styles.partnerTile} ${index === 0 ? styles.partnerTileProyectista : styles.partnerTileGestor}`}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className={styles.partnerRoleBadge}>{partner.role || 'Socio'}</span>
+                      <span className={styles.partnerPctBadge}>{partner.pct}%</span>
+                    </div>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f8fafc', marginTop: '0.2rem' }}>
+                      {partner.name}
                     </span>
-                  </div>
-                  {result.deferredRetentionPool > 0 && (
+                    <span className={styles.partnerSumTotal}>{fmt(partner.totalAmount)}</span>
                     <div className={styles.partnerFlowRow}>
-                      <span>Al Cierre (Recepción):</span>
-                      <span style={{ color: '#fbbf24' }}>
-                        {fmt(result.distribution.businessPartner.deferredAmount)}
-                      </span>
+                      <span>Líquido Obra:</span>
+                      <span style={{ color: '#34d399', fontWeight: 700 }}>{fmt(partner.immediateAmount)}</span>
                     </div>
-                  )}
-                  {hasContractAmount && (
-                    <div style={{ fontSize: '0.725rem', color: '#60a5fa', marginTop: '0.2rem', fontWeight: 700 }}>
-                      Margen real: {result.distribution.businessPartner.effectiveMarginOnGross}% del bruto
-                    </div>
-                  )}
-                </div>
+                    {result.deferredRetentionPool > 0 && (
+                      <div className={styles.partnerFlowRow}>
+                        <span>Al Cierre (Recepción):</span>
+                        <span style={{ color: '#fbbf24' }}>{fmt(partner.deferredAmount)}</span>
+                      </div>
+                    )}
+                    {hasContractAmount && (
+                      <div style={{ fontSize: '0.725rem', color: '#10b981', marginTop: '0.2rem', fontWeight: 700 }}>
+                        Margen real: {partner.effectiveMarginOnGross}% del contrato bruto
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
 
-              {/* Barra de Absorción de Capital */}
-              {hasContractAmount && (
-                <div className={styles.visualAuditCard}>
+              {/* Tarjeta de Varianza de Empresa Presta-Nombre (si está habilitada) */}
+              {result.titularCompany.enabled && (
+                <div className={styles.varianceCard}>
                   <div className={styles.sectionHeader}>
-                    <span className={styles.sectionHeading}>📊 Quién se come el Contrato</span>
-                    <span style={{ fontSize: '0.725rem', color: '#64748b' }}>100% Presupuesto ({fmt(result.contractGrossAmount)})</span>
+                    <span className={styles.sectionHeading}>
+                      🏢 Varianza Fiscal: Empresa Presta-Nombre ({result.titularCompany.name || 'Empresa Titular'})
+                    </span>
+                    <span className={styles.sectionCostBadge} style={{ color: '#38bdf8' }}>
+                      Fee: -{fmt(result.titularCompany.amount)} ({result.titularCompany.effectivePctOfGross}%)
+                    </span>
                   </div>
 
-                  <div className={styles.auditBarWrapper}>
-                    <div className={styles.auditBar}>
-                      <div
-                        className={styles.auditSegment}
-                        style={{
-                          width: `${result.summaryMetrics.effectiveTakeRates.governmentPct}%`,
-                          background: '#2563eb',
-                        }}
-                        title={`Impuestos: ${result.summaryMetrics.effectiveTakeRates.governmentPct}%`}
-                      />
-                      <div
-                        className={styles.auditSegment}
-                        style={{
-                          width: `${result.summaryMetrics.effectiveTakeRates.guaranteesPct}%`,
-                          background: '#9333ea',
-                        }}
-                        title={`Boletas: ${result.summaryMetrics.effectiveTakeRates.guaranteesPct}%`}
-                      />
-                      <div
-                        className={styles.auditSegment}
-                        style={{
-                          width: `${result.summaryMetrics.effectiveTakeRates.commercialFeesPct}%`,
-                          background: '#f43f5e',
-                        }}
-                        title={`Diezmo y Empresa: ${result.summaryMetrics.effectiveTakeRates.commercialFeesPct}%`}
-                      />
-                      <div
-                        className={styles.auditSegment}
-                        style={{
-                          width: `${result.summaryMetrics.effectiveTakeRates.personnelPct}%`,
-                          background: '#fb923c',
-                        }}
-                        title={`Personal / Staffing: ${result.summaryMetrics.effectiveTakeRates.personnelPct}%`}
-                      />
-                      <div
-                        className={styles.auditSegment}
-                        style={{
-                          width: `${result.summaryMetrics.effectiveTakeRates.directCostsPct}%`,
-                          background: '#475569',
-                        }}
-                        title={`Costos Directos: ${result.summaryMetrics.effectiveTakeRates.directCostsPct}%`}
-                      />
-                      <div
-                        className={styles.auditSegment}
-                        style={{
-                          width: `${result.summaryMetrics.effectiveTakeRates.teamNetProfitPct}%`,
-                          background: '#10b981',
-                        }}
-                        title={`Ganancia Socios: ${result.summaryMetrics.effectiveTakeRates.teamNetProfitPct}%`}
-                      />
+                  <div className={styles.varianceGrid}>
+                    <div
+                      className={`${styles.varianceOption} ${result.titularCompany.absorbsTaxes ? styles.varianceOptionActive : ''}`}
+                    >
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#38bdf8' }}>
+                        Opción A: Titular ABSORBE Impuestos
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                        La empresa titular asume IVA/IT e IUE de su fee. El equipo técnico cobra limpio.
+                      </span>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#34d399', marginTop: '0.25rem' }}>
+                        Ganancia Equipo: {fmt(result.titularCompany.varianceAnalysis.ifTitularAbsorbsTaxes.teamNetGain)}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                        Margen: {result.titularCompany.varianceAnalysis.ifTitularAbsorbsTaxes.effectiveMargin}%
+                      </span>
                     </div>
 
-                    <div className={styles.auditLegendGrid}>
-                      <div className={styles.legendPill}>
-                        <div className={styles.legendDot} style={{ background: '#2563eb' }} />
-                        <span>Impuestos ({result.summaryMetrics.effectiveTakeRates.governmentPct}%)</span>
-                      </div>
-                      <div className={styles.legendPill}>
-                        <div className={styles.legendDot} style={{ background: '#9333ea' }} />
-                        <span>Boletas ({result.summaryMetrics.effectiveTakeRates.guaranteesPct}%)</span>
-                      </div>
-                      <div className={styles.legendPill}>
-                        <div className={styles.legendDot} style={{ background: '#f43f5e' }} />
-                        <span>Diezmo + Titular ({result.summaryMetrics.effectiveTakeRates.commercialFeesPct}%)</span>
-                      </div>
-                      <div className={styles.legendPill}>
-                        <div className={styles.legendDot} style={{ background: '#fb923c' }} />
-                        <span>Personal ({result.summaryMetrics.effectiveTakeRates.personnelPct}%)</span>
-                      </div>
-                      <div className={styles.legendPill}>
-                        <div className={styles.legendDot} style={{ background: '#475569' }} />
-                        <span>Gastos ({result.summaryMetrics.effectiveTakeRates.directCostsPct}%)</span>
-                      </div>
-                      <div className={styles.legendPill}>
-                        <div className={styles.legendDot} style={{ background: '#10b981' }} />
-                        <span>Ganancia ({result.summaryMetrics.effectiveTakeRates.teamNetProfitPct}%)</span>
-                      </div>
+                    <div
+                      className={`${styles.varianceOption} ${!result.titularCompany.absorbsTaxes ? styles.varianceOptionActive : ''}`}
+                    >
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f43f5e' }}>
+                        Opción B: Equipo ABSORBE Impuestos
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                        Se descuentan los impuestos del contrato y la titular se queda su fee íntegro.
+                      </span>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fb7185', marginTop: '0.25rem' }}>
+                        Ganancia Equipo: {fmt(result.titularCompany.varianceAnalysis.ifTeamAbsorbsTaxes.teamNetGain)}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                        Margen: {result.titularCompany.varianceAnalysis.ifTeamAbsorbsTaxes.effectiveMargin}%
+                      </span>
                     </div>
+                  </div>
+
+                  <div className={styles.varianceDiffBanner}>
+                    <span>Diferencia en juego en la mesa de negociación:</span>
+                    <strong style={{ fontSize: '0.9rem', color: '#ffffff' }}>
+                      +{fmt(result.titularCompany.varianceAnalysis.taxBurdenDifference)}
+                    </strong>
                   </div>
                 </div>
               )}
@@ -764,7 +791,7 @@ export function CalculatorView() {
           )}
 
           {/* =========================================================
-              TAB 2: 🎛️ NEGOCIACIÓN (CONTRATO, IMPUESTOS, BOLETAS, DIEZMO)
+              TAB 2: 🎛️ NEGOCIACIÓN (CONTRATO, IMPUESTOS, BOLETAS, DIEZMO, TITULAR)
               ========================================================= */}
           {activeTab === 'negociacion' && (
             <div className={styles.panel}>
@@ -780,7 +807,7 @@ export function CalculatorView() {
               <div className={styles.contractHeroBox}>
                 <div className={styles.contractLabel}>
                   <span>Monto Bruto Ofertado ({currency})</span>
-                  <span style={{ color: '#60a5fa' }}>Total contrato / pliego</span>
+                  <span style={{ color: '#60a5fa' }}>Total contrato / pliego licitado</span>
                 </div>
                 <div className={styles.contractInputWrapper}>
                   <span className={styles.contractCurrencySign}>{currency === 'Bs' ? 'Bs' : '$'}</span>
@@ -830,7 +857,7 @@ export function CalculatorView() {
                   </div>
                 </div>
 
-                {/* Si los impuestos están habilitados, opciones de normativa */}
+                {/* Opciones de normativa */}
                 {taxEnabled && (
                   <>
                     <div className={styles.tabGroup}>
@@ -895,7 +922,7 @@ export function CalculatorView() {
                 )}
               </div>
 
-              {/* 1.1 MÓDULO ANUAL DE IUE (25%) */}
+              {/* 1.1 MÓDULO ANUAL DE IUE (25%) CON EXPLICADOR CLARO */}
               <div className={styles.controlSection}>
                 <div className={styles.sectionHeader}>
                   <span className={styles.sectionHeading}>📑 Previsión Anual IUE (25%)</span>
@@ -946,7 +973,7 @@ export function CalculatorView() {
                           }))
                         }
                       >
-                        El Proyecto
+                        El Proyecto (Equipo)
                       </button>
                       <button
                         type="button"
@@ -970,8 +997,36 @@ export function CalculatorView() {
                           }))
                         }
                       >
-                        Exento
+                        Exento / Informal
                       </button>
+                    </div>
+
+                    {/* CUADRO DIDÁCTICO EXPLICATIVO */}
+                    <div className={styles.conceptExplainerBox}>
+                      <div className={styles.conceptItem}>
+                        <span className={styles.conceptTag} style={{ background: '#1e3a8a', color: '#60a5fa' }}>
+                          El Proyecto
+                        </span>
+                        <span>
+                          Los ingenieros y cuadrilla que ejecutan el trabajo. El IUE se descuenta de su fondo de ganancias.
+                        </span>
+                      </div>
+                      <div className={styles.conceptItem}>
+                        <span className={styles.conceptTag} style={{ background: '#064e3b', color: '#34d399' }}>
+                          Empresa Titular
+                        </span>
+                        <span>
+                          La empresa que prestó el NIT y firma asume el IUE de su propia comisión o margen corporativo.
+                        </span>
+                      </div>
+                      <div className={styles.conceptItem}>
+                        <span className={styles.conceptTag} style={{ background: '#334155', color: '#cbd5e1' }}>
+                          Exento
+                        </span>
+                        <span>
+                          Trato directo entre personas naturales sin declaración de IUE ante el SIN.
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1247,16 +1302,15 @@ export function CalculatorView() {
                 </div>
               </div>
 
-              {/* 4. DIEZMO Y EMPRESA TITULAR */}
+              {/* 4. DIEZMO DE ADJUDICACIÓN */}
               <div className={styles.controlSection}>
                 <div className={styles.sectionHeader}>
-                  <span className={styles.sectionHeading}>🤝 Diezmo & Empresa Presta-Nombre</span>
+                  <span className={styles.sectionHeading}>🤝 Diezmo / Intermediario de Adjudicación</span>
                   <span className={styles.sectionCostBadge} style={{ color: '#f43f5e' }}>
-                    Total: -{fmt(result.summaryMetrics.commercialFeesTotal)}
+                    Comisión: -{fmt(result.commission.amount)} ({result.commission.effectivePctOfGross}%)
                   </span>
                 </div>
 
-                {/* Diezmo */}
                 <div className={styles.inputGrid}>
                   <div className={styles.inputField}>
                     <span className={styles.inputLabel}>Diezmo / Contacto (%)</span>
@@ -1297,45 +1351,153 @@ export function CalculatorView() {
                     </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Empresa Titular */}
-                <div className={styles.inputGrid} style={{ marginTop: '0.5rem' }}>
-                  <div className={styles.inputField}>
-                    <span className={styles.inputLabel}>Fee Empresa Presta-Nombre (%)</span>
-                    <input
-                      type="number"
-                      step="0.5"
-                      placeholder="0"
-                      className={styles.darkInput}
-                      value={input.titularCompany.value === 0 ? '' : input.titularCompany.value}
-                      onChange={(e) =>
-                        setInput({
-                          ...input,
-                          titularCompany: { ...input.titularCompany, value: Number(e.target.value) || 0 },
-                        })
-                      }
-                    />
-                  </div>
-                  <div className={styles.inputField}>
-                    <span className={styles.inputLabel}>Monto Fee Empresa</span>
-                    <div
-                      style={{
-                        minHeight: '44px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '0 0.75rem',
-                        background: '#0f172a',
-                        borderRadius: '8px',
-                        color: '#f43f5e',
-                        fontFamily: 'var(--font-geist-mono), monospace',
-                        fontSize: '0.85rem',
-                        fontWeight: 700,
-                      }}
-                    >
-                      -{fmt(result.titularCompany.amount)}
+              {/* 5. EMPRESA TITULAR / PRESTA-NOMBRE CON SWITCH Y ANÁLISIS DE VARIANZA */}
+              <div className={styles.controlSection}>
+                <div className={styles.sectionHeader}>
+                  <span className={styles.sectionHeading}>🏢 Empresa Presta-Nombre (NIT & Firma)</span>
+                  <span className={styles.sectionCostBadge} style={{ color: input.titularCompany.enabled ? '#38bdf8' : '#64748b' }}>
+                    {input.titularCompany.enabled ? `-${fmt(result.titularCompany.amount)}` : 'Desactivada'}
+                  </span>
+                </div>
+
+                {/* Botón de Habilitación / Deshabilitación de Empresa Titular */}
+                <div
+                  className={`${styles.tactileCard} ${input.titularCompany.enabled ? styles.tactileCardActive : ''}`}
+                >
+                  <div
+                    className={styles.tactileHeaderRow}
+                    onClick={() =>
+                      setInput((prev) => ({
+                        ...prev,
+                        titularCompany: {
+                          ...prev.titularCompany,
+                          enabled: !prev.titularCompany.enabled,
+                        },
+                      }))
+                    }
+                  >
+                    <div className={styles.tactileInfo}>
+                      <span className={styles.tactileTitle}>
+                        {input.titularCompany.enabled
+                          ? '✓ Empresa Presta-Nombre HABILITADA'
+                          : '✗ Empresa Presta-Nombre DESHABILITADA (Empresa Propia)'}
+                      </span>
+                      <span className={styles.tactileSub}>
+                        {input.titularCompany.enabled
+                          ? 'Se pacta un fee por usar el NIT, firma y personería jurídica de un tercero'
+                          : 'El contrato se ejecuta con personería propia o trato directo'}
+                      </span>
+                    </div>
+                    <div className={`${styles.toggleTrack} ${input.titularCompany.enabled ? styles.toggleTrackActive : ''}`}>
+                      <div className={`${styles.toggleThumb} ${input.titularCompany.enabled ? styles.toggleThumbActive : ''}`} />
                     </div>
                   </div>
                 </div>
+
+                {input.titularCompany.enabled && (
+                  <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    <div className={styles.inputGrid}>
+                      <div className={styles.inputField}>
+                        <span className={styles.inputLabel}>Razón Social / Nombre Empresa</span>
+                        <input
+                          type="text"
+                          placeholder="ej. Constructora Andina SRL"
+                          className={styles.darkInput}
+                          value={input.titularCompany.name || ''}
+                          onChange={(e) =>
+                            setInput((prev) => ({
+                              ...prev,
+                              titularCompany: { ...prev.titularCompany, name: e.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className={styles.inputField}>
+                        <span className={styles.inputLabel}>Fee Empresa Titular (%)</span>
+                        <input
+                          type="number"
+                          step="0.5"
+                          placeholder="0"
+                          className={styles.darkInput}
+                          value={input.titularCompany.value === 0 ? '' : input.titularCompany.value}
+                          onChange={(e) =>
+                            setInput((prev) => ({
+                              ...prev,
+                              titularCompany: { ...prev.titularCompany, value: Number(e.target.value) || 0 },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* SWITCH CRUCIAL DE ABSORCIÓN TRIBUTARIA */}
+                    <div
+                      className={`${styles.tactileCard} ${input.titularCompany.absorbsTaxes ? styles.tactileCardActive : ''}`}
+                    >
+                      <div
+                        className={styles.tactileHeaderRow}
+                        onClick={() =>
+                          setInput((prev) => ({
+                            ...prev,
+                            titularCompany: {
+                              ...prev.titularCompany,
+                              absorbsTaxes: !prev.titularCompany.absorbsTaxes,
+                            },
+                          }))
+                        }
+                      >
+                        <div className={styles.tactileInfo}>
+                          <span className={styles.tactileTitle}>
+                            {input.titularCompany.absorbsTaxes
+                              ? '🏢 Empresa Titular ABSORBE Carga Impositiva'
+                              : '👷 Equipo Técnico ABSORBE Carga Impositiva'}
+                          </span>
+                          <span className={styles.tactileSub}>
+                            {input.titularCompany.absorbsTaxes
+                              ? 'La empresa titular cubre los impuestos de su fee. El equipo recibe su pago limpio.'
+                              : 'Los impuestos se descuentan del contrato y la empresa se queda su fee íntegro.'}
+                          </span>
+                        </div>
+                        <div className={`${styles.toggleTrack} ${input.titularCompany.absorbsTaxes ? styles.toggleTrackActive : ''}`}>
+                          <div className={`${styles.toggleThumb} ${input.titularCompany.absorbsTaxes ? styles.toggleThumbActive : ''}`} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* TARJETA DE VARIANZA EN VIVO */}
+                    <div className={styles.varianceCard}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#38bdf8' }}>
+                        ⚖️ Simulación de Varianza en la Mesa:
+                      </span>
+                      <div className={styles.varianceGrid}>
+                        <div className={styles.varianceOption}>
+                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Si Titular Asume:</span>
+                          <strong style={{ fontSize: '0.9rem', color: '#34d399' }}>
+                            {fmt(result.titularCompany.varianceAnalysis.ifTitularAbsorbsTaxes.teamNetGain)}
+                          </strong>
+                          <span style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                            Margen: {result.titularCompany.varianceAnalysis.ifTitularAbsorbsTaxes.effectiveMargin}%
+                          </span>
+                        </div>
+                        <div className={styles.varianceOption}>
+                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Si Equipo Asume:</span>
+                          <strong style={{ fontSize: '0.9rem', color: '#f43f5e' }}>
+                            {fmt(result.titularCompany.varianceAnalysis.ifTeamAbsorbsTaxes.teamNetGain)}
+                          </strong>
+                          <span style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                            Margen: {result.titularCompany.varianceAnalysis.ifTeamAbsorbsTaxes.effectiveMargin}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className={styles.varianceDiffBanner}>
+                        <span>Diferencia en juego:</span>
+                        <strong>+{fmt(result.titularCompany.varianceAnalysis.taxBurdenDifference)}</strong>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1559,49 +1721,156 @@ export function CalculatorView() {
           )}
 
           {/* =========================================================
-              TAB 4: ⚖️ REPARTO (SOCIOS, PROYECTISTA, FONDO RESERVA)
+              TAB 4: ⚖️ REPARTO (MULTI-SOCIO DINÁMICO & PERSONALIZABLE)
               ========================================================= */}
           {activeTab === 'reparto' && (
             <div className={styles.panel}>
               <div className={styles.sectionHeader}>
                 <div className={styles.panelTitle}>
                   <span className={styles.panelNumber}>⚖️</span>
-                  <span>Acuerdo de Reparto entre Socios</span>
+                  <span>Acuerdo de Reparto entre Socios ({partners.length} participantes)</span>
                 </div>
-                <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 700 }}>
-                  Proyectista: {input.distribution.projectManagerPct}% | Gestor: {input.distribution.businessPartnerPct}%
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className={styles.miniToggleBtn}
+                    style={{ borderColor: '#3b82f6', color: '#60a5fa' }}
+                    onClick={splitPartnersEqually}
+                  >
+                    Dividir en Partes Iguales
+                  </button>
+                </div>
               </div>
 
-              {/* Slider de Repartición */}
-              <div className={styles.controlSection}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '0.4rem' }}>
-                  <span style={{ color: '#34d399', fontWeight: 700 }}>
-                    Proyectista (Técnico): {input.distribution.projectManagerPct}%
-                  </span>
-                  <span style={{ color: '#60a5fa', fontWeight: 700 }}>
-                    Socio Comercial: {input.distribution.businessPartnerPct}%
-                  </span>
+              {/* Alerta de validación de porcentajes */}
+              {totalPartnerPct !== 100 && (
+                <div className={styles.partnerValidationWarning}>
+                  ⚠️ La suma actual es <strong>{totalPartnerPct}%</strong>. Debe sumar exactamente <strong>100%</strong> (incluyendo el fondo de reserva).
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="5"
-                  className={styles.sliderTrack}
-                  value={input.distribution.projectManagerPct}
-                  onChange={(e) => {
-                    const pm = Number(e.target.value);
-                    setInput({
-                      ...input,
-                      distribution: {
-                        ...input.distribution,
-                        projectManagerPct: pm,
-                        businessPartnerPct: 100 - pm,
-                      },
-                    });
-                  }}
-                />
+              )}
+
+              {/* Botones de presets para añadir socios */}
+              <div className={styles.staffPresetRow}>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>+ Añadir Socio:</span>
+                <button type="button" className={styles.staffPresetBtn} onClick={() => addPartner('Inversionista')}>
+                  + Inversionista
+                </button>
+                <button type="button" className={styles.staffPresetBtn} onClick={() => addPartner('Asesor Legal')}>
+                  + Asesor Legal
+                </button>
+                <button type="button" className={styles.staffPresetBtn} onClick={() => addPartner('Gestor Terreno')}>
+                  + Gestor Terreno
+                </button>
+                <button type="button" className={styles.staffPresetBtn} onClick={() => addPartner('Maestro de Obra')}>
+                  + Maestro Obra
+                </button>
+                <button
+                  type="button"
+                  className={styles.staffPresetBtn}
+                  style={{ borderColor: '#10b981', color: '#34d399' }}
+                  onClick={() => addPartner()}
+                >
+                  + Otro Socio
+                </button>
+              </div>
+
+              {/* Lista dinámica de socios con sliders individuales */}
+              <div className={styles.partnerList}>
+                {partners.map((partner) => {
+                  const partnerResult = result.distribution.partners.find((p) => p.id === partner.id);
+
+                  return (
+                    <div key={partner.id} className={styles.partnerRowCard}>
+                      <div className={styles.partnerRowTop}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: '220px' }}>
+                          <input
+                            type="text"
+                            placeholder="Nombre del Socio"
+                            className={styles.darkInput}
+                            style={{ minHeight: '36px', fontWeight: 700 }}
+                            value={partner.name}
+                            onChange={(e) => updatePartner(partner.id, { name: e.target.value })}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Rol / Aporte"
+                            className={styles.darkInput}
+                            style={{ minHeight: '36px', width: '150px' }}
+                            value={partner.role}
+                            onChange={(e) => updatePartner(partner.id, { role: e.target.value })}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span className={styles.partnerPctBadge}>{partner.pct}%</span>
+                          {partners.length > 1 && (
+                            <button
+                              type="button"
+                              className={styles.delBtn}
+                              onClick={() => deletePartner(partner.id)}
+                              title="Eliminar socio"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Slider individual del socio */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="1"
+                          className={styles.sliderTrack}
+                          value={partner.pct}
+                          onChange={(e) => updatePartner(partner.id, { pct: Number(e.target.value) || 0 })}
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          className={styles.darkInput}
+                          style={{ width: '70px', minHeight: '36px', textAlign: 'center' }}
+                          value={partner.pct}
+                          onChange={(e) => updatePartner(partner.id, { pct: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
+                        />
+                      </div>
+
+                      {/* Desglose de ganancia calculada para este socio */}
+                      {partnerResult && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: '0.5rem',
+                            paddingTop: '0.4rem',
+                            borderTop: '1px dashed rgba(255, 255, 255, 0.08)',
+                            fontSize: '0.75rem',
+                          }}
+                        >
+                          <span>
+                            Total: <strong style={{ color: '#ffffff' }}>{fmt(partnerResult.totalAmount)}</strong>
+                          </span>
+                          <span>
+                            Líquido en obra: <strong style={{ color: '#34d399' }}>{fmt(partnerResult.immediateAmount)}</strong>
+                          </span>
+                          {result.deferredRetentionPool > 0 && (
+                            <span>
+                              Al cierre: <strong style={{ color: '#fbbf24' }}>{fmt(partnerResult.deferredAmount)}</strong>
+                            </span>
+                          )}
+                          <span style={{ color: '#60a5fa' }}>
+                            Margen bruto: <strong>{partnerResult.effectiveMarginOnGross}%</strong>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Fondo de Imprevistos / Contingencia */}
@@ -1630,55 +1899,38 @@ export function CalculatorView() {
                   }
                 />
                 <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                  Se aparta de la bolsa líquida antes del reparto final a los socios.
+                  Se aparta de la bolsa líquida antes del reparto final a los socios para cubrir contingencias de obra.
                 </span>
-              </div>
-
-              {/* Desglose de distribución monetaria */}
-              <div className={styles.partnerCardGrid} style={{ marginTop: '1rem' }}>
-                <div className={`${styles.partnerTile} ${styles.partnerTileProyectista}`}>
-                  <span className={styles.partnerRoleBadge}>Proyectista ({input.distribution.projectManagerPct}%)</span>
-                  <span className={styles.partnerSumTotal}>{fmt(result.distribution.projectManager.totalAmount)}</span>
-                  <div className={styles.partnerFlowRow}>
-                    <span>Líquido durante obra:</span>
-                    <strong style={{ color: '#34d399' }}>{fmt(result.distribution.projectManager.immediateAmount)}</strong>
-                  </div>
-                  {result.deferredRetentionPool > 0 && (
-                    <div className={styles.partnerFlowRow}>
-                      <span>Cobro en Recepción Definitiva:</span>
-                      <strong style={{ color: '#fbbf24' }}>{fmt(result.distribution.projectManager.deferredAmount)}</strong>
-                    </div>
-                  )}
-                </div>
-
-                <div className={`${styles.partnerTile} ${styles.partnerTileGestor}`}>
-                  <span className={styles.partnerRoleBadge}>Socio Gestor ({input.distribution.businessPartnerPct}%)</span>
-                  <span className={styles.partnerSumTotal}>{fmt(result.distribution.businessPartner.totalAmount)}</span>
-                  <div className={styles.partnerFlowRow}>
-                    <span>Líquido durante obra:</span>
-                    <strong style={{ color: '#60a5fa' }}>{fmt(result.distribution.businessPartner.immediateAmount)}</strong>
-                  </div>
-                  {result.deferredRetentionPool > 0 && (
-                    <div className={styles.partnerFlowRow}>
-                      <span>Cobro en Recepción Definitiva:</span>
-                      <strong style={{ color: '#fbbf24' }}>{fmt(result.distribution.businessPartner.deferredAmount)}</strong>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           )}
 
           {/* =========================================================
-              TAB 5: 🧾 DETALLE (AUDITORÍA FINANCIERA & FISCAL)
+              TAB 5: 🧾 DETALLE (AUDITORÍA FINANCIERA & EXPORT PDF)
               ========================================================= */}
           {activeTab === 'detalle' && (
             <div className={styles.visualAuditCard}>
               <div className={styles.sectionHeader}>
                 <span className={styles.sectionHeading}>🧾 Liquidación Financiera Pre-Firma (Centavo a Centavo)</span>
-                <button type="button" className={styles.exportBtn} onClick={handleCopySummary} style={{ minHeight: '36px', padding: '0.3rem 0.75rem', fontSize: '0.75rem' }}>
-                  Copiar Tabla
-                </button>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <button
+                    type="button"
+                    className={styles.pdfBtn}
+                    onClick={handleDownloadPdf}
+                    disabled={isGeneratingPdf}
+                    style={{ minHeight: '36px', padding: '0.3rem 0.75rem', fontSize: '0.75rem' }}
+                  >
+                    📄 {isGeneratingPdf ? 'Generando...' : 'Descargar PDF'}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.exportBtn}
+                    onClick={handleCopySummary}
+                    style={{ minHeight: '36px', padding: '0.3rem 0.75rem', fontSize: '0.75rem' }}
+                  >
+                    Copiar WhatsApp
+                  </button>
+                </div>
               </div>
 
               <div className={styles.tableScrollWrap}>
@@ -1738,15 +1990,20 @@ export function CalculatorView() {
                         -{fmtPrecise(result.commission.amount)}
                       </td>
                     </tr>
-                    <tr>
-                      <td>(-) Fee Empresa Titular (NIT / Firma)</td>
-                      <td className={`${styles.textEnd} ${styles.redCut}`}>
-                        -{result.titularCompany.effectivePctOfGross}%
-                      </td>
-                      <td className={`${styles.textEnd} ${styles.redCut}`}>
-                        -{fmtPrecise(result.titularCompany.amount)}
-                      </td>
-                    </tr>
+                    {result.titularCompany.enabled && (
+                      <tr>
+                        <td>
+                          (-) Fee Empresa Titular ({result.titularCompany.name || 'NIT/Firma'}
+                          {result.titularCompany.absorbsTaxes ? ' - Asume Impuestos' : ''})
+                        </td>
+                        <td className={`${styles.textEnd} ${styles.redCut}`}>
+                          -{result.titularCompany.effectivePctOfGross}%
+                        </td>
+                        <td className={`${styles.textEnd} ${styles.redCut}`}>
+                          -{fmtPrecise(result.titularCompany.amount)}
+                        </td>
+                      </tr>
+                    )}
                     <tr>
                       <td>(-) Personal & Cargas Sociales (Staffing)</td>
                       <td className={`${styles.textEnd} ${styles.redCut}`}>
@@ -1822,9 +2079,9 @@ export function CalculatorView() {
             ========================================================= */}
         <div className={styles.mobileFloatingBar}>
           <div className={styles.mobileFloatingGain}>
-            <span className={styles.mobileFloatingLabel}>Tu Ganancia Neta</span>
+            <span className={styles.mobileFloatingLabel}>Tu Ganancia ({partners[0]?.name?.split(' ')[0] || 'Socio 1'})</span>
             <span className={styles.mobileFloatingAmount}>
-              {hasContractAmount ? fmt(result.distribution.projectManager.totalAmount) : `0 ${currency}`}
+              {hasContractAmount ? fmt(result.distribution.partners[0]?.totalAmount || 0) : `0 ${currency}`}
             </span>
           </div>
           <button

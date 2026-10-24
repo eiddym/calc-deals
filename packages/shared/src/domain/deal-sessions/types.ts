@@ -18,9 +18,9 @@ export type TaxScenarioType =
   | 'PERSONALIZADO';  // Tasa definida por el usuario
 
 export type IuePayerType =
-  | 'PROYECTO'        // Se descuenta de la bolsa líquida del negocio
-  | 'EMPRESA_TITULAR' // Lo asume la empresa titular que prestó el NIT
-  | 'EXENTO';         // No computar IUE (ej. trato informal o no aplicable)
+  | 'PROYECTO'        // Se descuenta de la bolsa líquida de los técnicos/socios que hacen la obra
+  | 'EMPRESA_TITULAR' // Lo asume la empresa titular que prestó el NIT como parte de su servicio
+  | 'EXENTO';         // Trato informal o régimen no sujeto a IUE
 
 export type FeeCalculationType = 'PERCENTAGE_GROSS' | 'PERCENTAGE_NET' | 'FIXED';
 
@@ -41,6 +41,24 @@ export interface StaffAssignment {
   laborBurdenPct: number;     // Carga social y beneficios (ej. 33.37% o 0% si es consultor por producto)
   isDirectSiteCost: boolean;  // true: costo directo de obra | false: costo administrativo
   hasFormalPayroll: boolean;  // true: en planilla formal deducible de IUE | false: pago en mano
+}
+
+export interface DealPartner {
+  id: string;
+  name: string;        // ej. "Ing. Residente", "Socio Gestor", "Inversionista", "Socio Legal"
+  role: string;        // ej. "Proyectista", "Gestor Comercial", "Financista", "Asesor"
+  pct: number;         // Porcentaje de la utilidad neta asignado (0 - 100)
+}
+
+export interface DealPartnerResult {
+  id: string;
+  name: string;
+  role: string;
+  pct: number;
+  immediateAmount: number;     // Disponible en mano durante ejecución
+  deferredAmount: number;      // Cobro diferido al Acta de Recepción Definitiva
+  totalAmount: number;         // Total líquido + diferido
+  effectiveMarginOnGross: number; // Margen real sobre el monto bruto licitado (%)
 }
 
 export interface DealCalculationInput {
@@ -97,10 +115,13 @@ export interface DealCalculationInput {
 
   // 6. Presta-Nombre / Empresa Titular / Maquila
   titularCompany: {
-    type: FeeCalculationType; // % del bruto, % del neto o fijo
-    value: number;            // ej. 8% por prestar el NIT y la firma
-    absorbsGuaranteesCost?: boolean; // ¿la empresa asume las primas de boletas?
-    absorbsIueCost?: boolean;        // ¿la empresa asume el IUE generado?
+    enabled?: boolean;                // Switch para habilitar / deshabilitar empresa presta-nombre
+    name?: string;                    // Razón social o nombre de la empresa titular
+    type: FeeCalculationType;        // % del bruto, % del neto o fijo
+    value: number;                   // ej. 8% por prestar el NIT y la firma
+    absorbsTaxes?: boolean;          // ¿La empresa asume los impuestos (IVA/IT e IUE) dentro de su fee?
+    absorbsGuaranteesCost?: boolean; // ¿La empresa asume las primas de boletas?
+    absorbsAdminExpenses?: boolean;  // ¿La empresa asume costos administrativos?
   };
 
   // 7. Personal y Asignación de Recursos (Staffing)
@@ -113,10 +134,11 @@ export interface DealCalculationInput {
     items: DirectCostItem[];
   };
 
-  // 9. Reparto de la Utilidad Neta
+  // 9. Reparto de la Utilidad Neta (Soporta múltiples socios dinámicos)
   distribution: {
-    projectManagerPct: number; // % Proyectista
-    businessPartnerPct: number; // % Socio gestor
+    partners?: DealPartner[];   // Lista de socios dinámicos con % personalizado
+    projectManagerPct?: number; // Para compatibilidad
+    businessPartnerPct?: number;// Para compatibilidad
     contingencyFundPct: number; // % Fondo de reserva / imprevistos
   };
 }
@@ -171,10 +193,28 @@ export interface DealCalculationResult {
     effectivePctOfGross: number;
   };
 
-  // Fee de la empresa titular (presta-nombre)
+  // Fee de la empresa titular (presta-nombre) y análisis de varianza
   titularCompany: {
+    enabled: boolean;
+    name?: string;
     amount: number;
     effectivePctOfGross: number;
+    absorbsTaxes: boolean;
+    absorbsGuaranteesCost: boolean;
+    absorbsAdminExpenses: boolean;
+    varianceAnalysis: {
+      ifTitularAbsorbsTaxes: {
+        teamNetGain: number;
+        teamLiquidGain: number;
+        effectiveMargin: number;
+      };
+      ifTeamAbsorbsTaxes: {
+        teamNetGain: number;
+        teamLiquidGain: number;
+        effectiveMargin: number;
+      };
+      taxBurdenDifference: number; // Monto extra que gana el equipo si la titular absorbe impuestos
+    };
   };
 
   // Personal y Staffing
@@ -199,22 +239,11 @@ export interface DealCalculationResult {
   deferredRetentionPool: number;      // Retención temporal cobrada en Recepción Definitiva
   totalNetProfitPool: number;         // Inmediato + Diferido
 
-  // Repartición detallada
+  // Repartición detallada de socios
   distribution: {
-    projectManager: {
-      pct: number;
-      immediateAmount: number;
-      deferredAmount: number;
-      totalAmount: number;
-      effectiveMarginOnGross: number; // Margen real sobre el bruto
-    };
-    businessPartner: {
-      pct: number;
-      immediateAmount: number;
-      deferredAmount: number;
-      totalAmount: number;
-      effectiveMarginOnGross: number;
-    };
+    partners: DealPartnerResult[];     // Lista completa de socios calculados
+    projectManager: DealPartnerResult; // Para compatibilidad
+    businessPartner: DealPartnerResult;// Para compatibilidad
     contingencyFund: {
       pct: number;
       amount: number;

@@ -3,7 +3,12 @@ import {
   DealCalculationInput,
   DealCalculationResult,
   DealNegotiationMode,
+  DealPartner,
+  DealPartnerResult,
 } from './types';
+
+// Configuración de precisión decimal estricta para cálculos financieros
+Decimal.set({ precision: 28, rounding: Decimal.ROUND_HALF_UP });
 
 function d(val: number | string | undefined | null): Decimal {
   if (val === undefined || val === null || val === '') return new Decimal(0);
@@ -14,78 +19,77 @@ function d(val: number | string | undefined | null): Decimal {
   }
 }
 
-function r2(dec: Decimal): number {
-  return dec.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+function r2(val: Decimal): number {
+  return val.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
 }
 
 export function calculateDeal(input: DealCalculationInput): DealCalculationResult {
-  const mode: DealNegotiationMode = input.negotiationMode || 'FORMAL_LICITACION';
   const G = d(input.contractGrossAmount);
+  const mode: DealNegotiationMode = input.negotiationMode || 'FORMAL_LICITACION';
 
-  // 1. Garantías y Pólizas (Costos no recuperables)
-  const hasBid = !!input.guarantees.hasBidBond;
-  const bidCoverage = d(input.guarantees.bidBondCoveragePct ?? 1.5);
-  const bidAmountAfianzado = hasBid ? G.mul(bidCoverage.div(100)) : d(0);
-  const bidCost = hasBid
-    ? input.guarantees.bidBondFixedCost !== undefined && input.guarantees.bidBondFixedCost > 0
-      ? d(input.guarantees.bidBondFixedCost)
-      : bidAmountAfianzado.mul(d(input.guarantees.bidBondPremiumPct ?? 2.0).div(100))
-    : d(0);
+  // 1. Costos Financieros de Boletas y Pólizas Bancarias (No recuperables)
+  let bidCost = d(0);
+  let bidAmountAfianzado = d(0);
+  if (input.guarantees.hasBidBond) {
+    const coverage = d(input.guarantees.bidBondCoveragePct || 1.5).div(100);
+    const premium = d(input.guarantees.bidBondPremiumPct || 2.0).div(100);
+    bidAmountAfianzado = G.mul(coverage);
+    bidCost = bidAmountAfianzado.mul(premium).plus(d(input.guarantees.bidBondFixedCost || 0));
+  }
 
-  const hasPerf = !!input.guarantees.hasPerformanceBond;
-  const perfCoverage = d(input.guarantees.performanceBondCoveragePct ?? 7.0);
-  const perfAmountAfianzado = hasPerf ? G.mul(perfCoverage.div(100)) : d(0);
-  const perfCost = hasPerf
-    ? input.guarantees.performanceBondFixedCost !== undefined && input.guarantees.performanceBondFixedCost > 0
-      ? d(input.guarantees.performanceBondFixedCost)
-      : perfAmountAfianzado.mul(d(input.guarantees.performanceBondPremiumPct ?? 2.5).div(100))
-    : d(0);
+  let perfCost = d(0);
+  let perfAmountAfianzado = d(0);
+  if (input.guarantees.hasPerformanceBond) {
+    const coverage = d(input.guarantees.performanceBondCoveragePct || 7.0).div(100);
+    const premium = d(input.guarantees.performanceBondPremiumPct || 2.5).div(100);
+    perfAmountAfianzado = G.mul(coverage);
+    perfCost = perfAmountAfianzado.mul(premium).plus(d(input.guarantees.performanceBondFixedCost || 0));
+  }
 
-  const hasAdv = !!input.guarantees.hasAdvanceBond;
-  const advCoverage = d(input.guarantees.advancePct ?? 20.0);
-  const advAmountAfianzado = hasAdv ? G.mul(advCoverage.div(100)) : d(0);
-  const advCost = hasAdv
-    ? input.guarantees.advanceBondFixedCost !== undefined && input.guarantees.advanceBondFixedCost > 0
-      ? d(input.guarantees.advanceBondFixedCost)
-      : advAmountAfianzado.mul(d(input.guarantees.advanceBondPremiumPct ?? 2.5).div(100))
-    : d(0);
+  let advCost = d(0);
+  let advAmountAfianzado = d(0);
+  if (input.guarantees.hasAdvanceBond) {
+    const advanceRate = d(input.guarantees.advancePct || 20.0).div(100);
+    const premium = d(input.guarantees.advanceBondPremiumPct || 2.5).div(100);
+    advAmountAfianzado = G.mul(advanceRate);
+    advCost = advAmountAfianzado.mul(premium).plus(d(input.guarantees.advanceBondFixedCost || 0));
+  }
 
   const totalGuaranteesCost = bidCost.plus(perfCost).plus(advCost);
 
-  // 2. Impuestos Mensuales (IVA + IT)
+  // 2. Carga Fiscal Mensual (IVA + IT o Retención en la Fuente)
   let nominalTaxRate = d(0);
   let effectiveTaxRate = d(0);
-  const taxCreditPct = Decimal.max(0, Decimal.min(100, d(input.taxScenario.taxCreditPct ?? 0)));
+  let grossTaxAmount = d(0);
+  let taxCreditSavings = d(0);
+  let effectiveTaxAmount = d(0);
 
-  switch (input.taxScenario.type) {
-    case 'CON_FACTURA': {
-      // 13% IVA + 3% IT = 16% nominal
-      nominalTaxRate = d(16.0);
-      // Descargo IVA con compras: solo reduce el 13%, el IT 3% no se compensa con compras
-      const ivaNet = d(13.0).mul(d(1).minus(taxCreditPct.div(100)));
-      effectiveTaxRate = ivaNet.plus(d(3.0));
-      break;
-    }
-    case 'RETENCION_LEY': {
-      nominalTaxRate = d(15.5);
-      effectiveTaxRate = d(15.5);
-      break;
-    }
-    case 'SIN_FACTURA': {
-      nominalTaxRate = d(0);
-      effectiveTaxRate = d(0);
-      break;
-    }
-    case 'PERSONALIZADO': {
-      nominalTaxRate = d(input.taxScenario.customRatePct ?? 0);
-      effectiveTaxRate = nominalTaxRate;
-      break;
-    }
+  if (input.taxScenario.type === 'CON_FACTURA') {
+    nominalTaxRate = d(16); // IVA 13% + IT 3%
+    grossTaxAmount = G.mul(nominalTaxRate.div(100));
+
+    // Descargo de compras con factura (Crédito Fiscal IVA sobre el 13%)
+    const creditRate = d(input.taxScenario.taxCreditPct || 0).div(100);
+    taxCreditSavings = G.mul(d(13).div(100)).mul(creditRate);
+    effectiveTaxAmount = Decimal.max(0, grossTaxAmount.minus(taxCreditSavings));
+    effectiveTaxRate = G.gt(0) ? effectiveTaxAmount.div(G).mul(100) : nominalTaxRate;
+  } else if (input.taxScenario.type === 'RETENCION_LEY') {
+    nominalTaxRate = d(15.5); // 12.5% IUE + 3% IT servicios
+    effectiveTaxRate = nominalTaxRate;
+    grossTaxAmount = G.mul(nominalTaxRate.div(100));
+    effectiveTaxAmount = grossTaxAmount;
+  } else if (input.taxScenario.type === 'PERSONALIZADO') {
+    nominalTaxRate = d(input.taxScenario.customRatePct || 0);
+    effectiveTaxRate = nominalTaxRate;
+    grossTaxAmount = G.mul(nominalTaxRate.div(100));
+    effectiveTaxAmount = grossTaxAmount;
+  } else {
+    // SIN_FACTURA
+    nominalTaxRate = d(0);
+    effectiveTaxRate = d(0);
+    grossTaxAmount = d(0);
+    effectiveTaxAmount = d(0);
   }
-
-  const nominalTaxAmount = G.mul(nominalTaxRate.div(100));
-  const effectiveTaxAmount = G.mul(effectiveTaxRate.div(100));
-  const taxCreditSavings = Decimal.max(0, nominalTaxAmount.minus(effectiveTaxAmount));
 
   // 3. Personal y Asignación de Recursos (Staffing)
   let totalPersonnelCost = d(0);
@@ -147,21 +151,36 @@ export function calculateDeal(input: DealCalculationInput): DealCalculationResul
   }
   const commissionEffectivePct = G.gt(0) ? commissionAmount.div(G).mul(100) : d(0);
 
-  // 7. Fee Empresa Titular (Presta-Nombre / Maquila)
+  // 7. Fee Empresa Titular (Presta-Nombre / Maquila) & Análisis de Varianza
+  const titularConfig = input.titularCompany || {
+    type: 'PERCENTAGE_GROSS',
+    value: 0,
+    enabled: false,
+    absorbsTaxes: false,
+    absorbsGuaranteesCost: false,
+    absorbsAdminExpenses: false,
+  };
+
+  const isTitularEnabled = titularConfig.enabled !== false && (titularConfig.value || 0) > 0;
   let titularCompanyAmount = d(0);
-  if (input.titularCompany.type === 'FIXED') {
-    titularCompanyAmount = d(input.titularCompany.value || 0);
-  } else if (input.titularCompany.type === 'PERCENTAGE_NET') {
-    const netBase = Decimal.max(0, G.minus(effectiveTaxAmount).minus(totalGuaranteesCost));
-    titularCompanyAmount = netBase.mul(d(input.titularCompany.value || 0).div(100));
-  } else {
-    titularCompanyAmount = G.mul(d(input.titularCompany.value || 0).div(100));
+
+  if (isTitularEnabled) {
+    if (titularConfig.type === 'FIXED') {
+      titularCompanyAmount = d(titularConfig.value || 0);
+    } else if (titularConfig.type === 'PERCENTAGE_NET') {
+      const netBase = Decimal.max(0, G.minus(effectiveTaxAmount).minus(totalGuaranteesCost));
+      titularCompanyAmount = netBase.mul(d(titularConfig.value || 0).div(100));
+    } else {
+      titularCompanyAmount = G.mul(d(titularConfig.value || 0).div(100));
+    }
+
+    if (titularConfig.absorbsGuaranteesCost) {
+      titularCompanyAmount = Decimal.max(0, titularCompanyAmount.minus(totalGuaranteesCost));
+    }
   }
 
-  if (input.titularCompany.absorbsGuaranteesCost) {
-    titularCompanyAmount = Decimal.max(0, titularCompanyAmount.minus(totalGuaranteesCost));
-  }
   const titularEffectivePct = G.gt(0) ? titularCompanyAmount.div(G).mul(100) : d(0);
+  const titularAbsorbsTaxes = isTitularEnabled && !!titularConfig.absorbsTaxes;
 
   // 8. Módulo de IUE Anual (25%)
   const iueConfig = input.iueTax || { enabled: false, ratePct: 25, payer: 'EXENTO' };
@@ -185,17 +204,19 @@ export function calculateDeal(input: DealCalculationInput): DealCalculationResul
     const iueRate = d(iueConfig.ratePct || 25).div(100);
     estimatedIue = taxableProfitBase.mul(iueRate);
 
-    if (iueConfig.payer === 'PROYECTO') {
+    if (iueConfig.payer === 'PROYECTO' && !titularAbsorbsTaxes) {
       iueDeductedFromProject = estimatedIue;
-    } else if (iueConfig.payer === 'EMPRESA_TITULAR') {
+    } else if (iueConfig.payer === 'EMPRESA_TITULAR' || titularAbsorbsTaxes) {
       companyAbsorbedIue = estimatedIue;
     }
   }
 
   // 9. Cálculo de Gastos No Recuperables y Bolsas de Ganancia
+  // Si la empresa titular asume los impuestos, NO se le descuentan al equipo que ejecuta
+  const projectEffectiveTaxes = titularAbsorbsTaxes ? d(0) : effectiveTaxAmount;
   const nonRecoverableStatutory = isRecoverableRetention ? d(0) : statutoryAmount;
 
-  const totalNonRecoverableExpenses = effectiveTaxAmount
+  const totalNonRecoverableExpenses = projectEffectiveTaxes
     .plus(totalGuaranteesCost)
     .plus(commissionAmount)
     .plus(titularCompanyAmount)
@@ -208,10 +229,38 @@ export function calculateDeal(input: DealCalculationInput): DealCalculationResul
   const deferredRetentionPool = isRecoverableRetention ? statutoryAmount : d(0);
   const immediateDistributablePool = Decimal.max(0, totalNetProfitPool.minus(deferredRetentionPool));
 
-  // 10. Repartición de Utilidad Neta
+  // Análisis de Varianza (Titular asume impuestos vs Equipo asume impuestos)
+  const taxesVarianceAmount = effectiveTaxAmount.plus(iueConfig.enabled ? estimatedIue : d(0));
+  const teamNetGainIfTitularAbsorbs = Decimal.max(
+    0,
+    G.minus(totalGuaranteesCost)
+      .minus(commissionAmount)
+      .minus(titularCompanyAmount)
+      .minus(totalPersonnelCost)
+      .minus(directCostsTotal)
+      .minus(nonRecoverableStatutory)
+  );
+  const teamNetGainIfTeamAbsorbs = Decimal.max(
+    0,
+    teamNetGainIfTitularAbsorbs.minus(taxesVarianceAmount)
+  );
+
+  const varianceAnalysis = {
+    ifTitularAbsorbsTaxes: {
+      teamNetGain: r2(teamNetGainIfTitularAbsorbs),
+      teamLiquidGain: r2(Decimal.max(0, teamNetGainIfTitularAbsorbs.minus(deferredRetentionPool))),
+      effectiveMargin: G.gt(0) ? r2(teamNetGainIfTitularAbsorbs.div(G).mul(100)) : 0,
+    },
+    ifTeamAbsorbsTaxes: {
+      teamNetGain: r2(teamNetGainIfTeamAbsorbs),
+      teamLiquidGain: r2(Decimal.max(0, teamNetGainIfTeamAbsorbs.minus(deferredRetentionPool))),
+      effectiveMargin: G.gt(0) ? r2(teamNetGainIfTeamAbsorbs.div(G).mul(100)) : 0,
+    },
+    taxBurdenDifference: r2(teamNetGainIfTitularAbsorbs.minus(teamNetGainIfTeamAbsorbs)),
+  };
+
+  // 10. Repartición de Utilidad Neta (Multi-Socio Dinámico)
   const dist = input.distribution || {
-    projectManagerPct: 100,
-    businessPartnerPct: 0,
     contingencyFundPct: 0,
   };
 
@@ -219,27 +268,73 @@ export function calculateDeal(input: DealCalculationInput): DealCalculationResul
   const contingencyAmount = totalNetProfitPool.mul(contingencyPct.div(100));
 
   const partnerPoolTotal = Decimal.max(0, totalNetProfitPool.minus(contingencyAmount));
-  const partnerPoolImmediate = Decimal.max(0, immediateDistributablePool.mul(d(1).minus(contingencyPct.div(100))));
+  const partnerPoolImmediate = Decimal.max(
+    0,
+    immediateDistributablePool.mul(d(1).minus(contingencyPct.div(100)))
+  );
   const partnerPoolDeferred = deferredRetentionPool;
 
-  const totalShares = d(dist.projectManagerPct || 0).plus(d(dist.businessPartnerPct || 0));
-  const pmRatio = totalShares.gt(0) ? d(dist.projectManagerPct || 0).div(totalShares) : d(1);
-  const bpRatio = totalShares.gt(0) ? d(dist.businessPartnerPct || 0).div(totalShares) : d(0);
+  // Obtener lista de socios (dinámica o por defecto proyectista + socio)
+  let partnersInput: DealPartner[] = [];
+  if (dist.partners && dist.partners.length > 0) {
+    partnersInput = dist.partners;
+  } else {
+    const pmPct = dist.projectManagerPct !== undefined ? dist.projectManagerPct : 100;
+    const bpPct = dist.businessPartnerPct !== undefined ? dist.businessPartnerPct : 0;
+    partnersInput = [
+      { id: 'partner-pm', name: 'Proyectista (Técnico)', role: 'Proyectista Responsable', pct: pmPct },
+      { id: 'partner-bp', name: 'Socio Gestor', role: 'Gestor Comercial', pct: bpPct },
+    ];
+  }
 
-  const pmImmediate = partnerPoolImmediate.mul(pmRatio);
-  const pmDeferred = partnerPoolDeferred.mul(pmRatio);
-  const pmTotal = pmImmediate.plus(pmDeferred);
-  const pmMargin = G.gt(0) ? pmTotal.div(G).mul(100) : d(0);
+  const totalPartnerShares = partnersInput.reduce((acc, p) => acc.plus(d(p.pct || 0)), d(0));
 
-  const bpImmediate = partnerPoolImmediate.mul(bpRatio);
-  const bpDeferred = partnerPoolDeferred.mul(bpRatio);
-  const bpTotal = bpImmediate.plus(bpDeferred);
-  const bpMargin = G.gt(0) ? bpTotal.div(G).mul(100) : d(0);
+  const calculatedPartners: DealPartnerResult[] = partnersInput.map((p) => {
+    const shareRatio = totalPartnerShares.gt(0) ? d(p.pct || 0).div(totalPartnerShares) : d(0);
+    const imm = partnerPoolImmediate.mul(shareRatio);
+    const def = partnerPoolDeferred.mul(shareRatio);
+    const tot = imm.plus(def);
+    const margin = G.gt(0) ? tot.div(G).mul(100) : d(0);
+
+    return {
+      id: p.id,
+      name: p.name || 'Socio',
+      role: p.role || 'Participante',
+      pct: p.pct || 0,
+      immediateAmount: r2(imm),
+      deferredAmount: r2(def),
+      totalAmount: r2(tot),
+      effectiveMarginOnGross: r2(margin),
+    };
+  });
+
+  // Mapeos de compatibilidad con código anterior (Proyectista y Socio Gestor)
+  const pmResult = calculatedPartners[0] || {
+    id: 'partner-pm',
+    name: 'Proyectista',
+    role: 'Técnico',
+    pct: 100,
+    immediateAmount: r2(partnerPoolImmediate),
+    deferredAmount: r2(partnerPoolDeferred),
+    totalAmount: r2(partnerPoolTotal),
+    effectiveMarginOnGross: G.gt(0) ? r2(partnerPoolTotal.div(G).mul(100)) : 0,
+  };
+
+  const bpResult = calculatedPartners[1] || {
+    id: 'partner-bp',
+    name: 'Socio Gestor',
+    role: 'Comercial',
+    pct: 0,
+    immediateAmount: 0,
+    deferredAmount: 0,
+    totalAmount: 0,
+    effectiveMarginOnGross: 0,
+  };
 
   // 11. Métricas de Resumen
-  const governmentTotal = effectiveTaxAmount.plus(nonRecoverableStatutory).plus(iueDeductedFromProject);
+  const governmentTotal = projectEffectiveTaxes.plus(nonRecoverableStatutory).plus(iueDeductedFromProject);
   const commercialFeesTotal = commissionAmount.plus(titularCompanyAmount);
-  const teamNetProfitTotal = pmTotal.plus(bpTotal).plus(contingencyAmount);
+  const teamNetProfitTotal = totalNetProfitPool;
 
   return {
     contractGrossAmount: r2(G),
@@ -281,8 +376,14 @@ export function calculateDeal(input: DealCalculationInput): DealCalculationResul
       effectivePctOfGross: r2(commissionEffectivePct),
     },
     titularCompany: {
+      enabled: isTitularEnabled,
+      name: titularConfig.name,
       amount: r2(titularCompanyAmount),
       effectivePctOfGross: r2(titularEffectivePct),
+      absorbsTaxes: titularAbsorbsTaxes,
+      absorbsGuaranteesCost: !!titularConfig.absorbsGuaranteesCost,
+      absorbsAdminExpenses: !!titularConfig.absorbsAdminExpenses,
+      varianceAnalysis,
     },
     staffing: {
       totalPersonnelCost: r2(totalPersonnelCost),
@@ -299,20 +400,9 @@ export function calculateDeal(input: DealCalculationInput): DealCalculationResul
     deferredRetentionPool: r2(deferredRetentionPool),
     totalNetProfitPool: r2(totalNetProfitPool),
     distribution: {
-      projectManager: {
-        pct: dist.projectManagerPct,
-        immediateAmount: r2(pmImmediate),
-        deferredAmount: r2(pmDeferred),
-        totalAmount: r2(pmTotal),
-        effectiveMarginOnGross: r2(pmMargin),
-      },
-      businessPartner: {
-        pct: dist.businessPartnerPct,
-        immediateAmount: r2(bpImmediate),
-        deferredAmount: r2(bpDeferred),
-        totalAmount: r2(bpTotal),
-        effectiveMarginOnGross: r2(bpMargin),
-      },
+      partners: calculatedPartners,
+      projectManager: pmResult,
+      businessPartner: bpResult,
       contingencyFund: {
         pct: r2(contingencyPct),
         amount: r2(contingencyAmount),

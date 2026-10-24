@@ -73,4 +73,63 @@ describe('Calculator in API integration', () => {
     expect(res.totalNetProfitPool).toBeGreaterThan(0);
     expect(res.deferredRetentionPool).toBe(5000);
   });
+
+  it('calcula la distribución dinámica para múltiples socios personalizados', () => {
+    const input: DealCalculationInput = {
+      contractGrossAmount: 100000,
+      taxScenario: { type: 'SIN_FACTURA' },
+      iueTax: { enabled: false, ratePct: 25, payer: 'EXENTO' },
+      guarantees: { hasBidBond: false, hasPerformanceBond: false, hasAdvanceBond: false },
+      statutoryDeductions: { retentionRatePct: 0, isRecoverable: true },
+      adjudicationCommission: { type: 'PERCENTAGE_GROSS', value: 0 },
+      titularCompany: { type: 'PERCENTAGE_GROSS', value: 0, enabled: false },
+      staffing: { assignments: [] },
+      directCosts: { items: [{ id: '1', concept: 'Gastos', amount: 20000 }] },
+      distribution: {
+        contingencyFundPct: 0,
+        partners: [
+          { id: 'p1', name: 'Proyectista Jefe', role: 'Director Técnico', pct: 50 },
+          { id: 'p2', name: 'Socio Comercial', role: 'Gestor', pct: 30 },
+          { id: 'p3', name: 'Inversionista', role: 'Financista', pct: 20 },
+        ],
+      },
+    };
+
+    const res = calculateDeal(input);
+    expect(res.totalNetProfitPool).toBe(80000);
+    expect(res.distribution.partners).toHaveLength(3);
+    expect(res.distribution.partners[0].totalAmount).toBe(40000);
+    expect(res.distribution.partners[1].totalAmount).toBe(24000);
+    expect(res.distribution.partners[2].totalAmount).toBe(16000);
+    expect(res.distribution.partners[0].effectiveMarginOnGross).toBe(40);
+  });
+
+  it('calcula el análisis de varianza cuando la empresa titular asume impuestos', () => {
+    const input: DealCalculationInput = {
+      contractGrossAmount: 100000,
+      taxScenario: { type: 'CON_FACTURA' }, // 16,000 Bs
+      iueTax: { enabled: false, ratePct: 25, payer: 'EXENTO' },
+      guarantees: { hasBidBond: false, hasPerformanceBond: false, hasAdvanceBond: false },
+      statutoryDeductions: { retentionRatePct: 0, isRecoverable: true },
+      adjudicationCommission: { type: 'PERCENTAGE_GROSS', value: 0 },
+      titularCompany: {
+        enabled: true,
+        type: 'PERCENTAGE_GROSS',
+        value: 10, // 10,000 Bs
+        absorbsTaxes: true,
+      },
+      staffing: { assignments: [] },
+      directCosts: { items: [] },
+      distribution: { contingencyFundPct: 0, projectManagerPct: 100, businessPartnerPct: 0 },
+    };
+
+    const res = calculateDeal(input);
+    expect(res.titularCompany.enabled).toBe(true);
+    expect(res.titularCompany.amount).toBe(10000);
+    expect(res.titularCompany.absorbsTaxes).toBe(true);
+    // Como la titular asume los 16,000 de impuestos, la ganancia del equipo es 100k - 10k fee = 90k
+    expect(res.totalNetProfitPool).toBe(90000);
+    expect(res.titularCompany.varianceAnalysis.taxBurdenDifference).toBe(16000);
+    expect(res.titularCompany.varianceAnalysis.ifTeamAbsorbsTaxes.teamNetGain).toBe(74000);
+  });
 });
