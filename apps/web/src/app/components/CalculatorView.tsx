@@ -12,6 +12,7 @@ import {
 } from '@calc/shared';
 import { DealCharts } from './DealCharts';
 import { generateDealPdf } from '../utils/pdfExport';
+import { HomeView } from './HomeView';
 import styles from './Calculator.module.css';
 
 type CurrencyType = 'Bs' | 'USD';
@@ -107,6 +108,11 @@ export function CalculatorView() {
     },
   });
 
+  // Navegación de nivel superior (Home limpio blanco/crema vs Workspaces)
+  const [currentView, setCurrentView] = useState<'home' | 'licitaciones' | 'inversion'>('home');
+  // Submodos de Licitaciones: Solo | Con Prestanombre | Consultoría Menor
+  const [licitacionSubMode, setLicitacionSubMode] = useState<'solo' | 'prestanombre' | 'consultoria'>('solo');
+
   const [targetDesiredProfit, setTargetDesiredProfit] = useState<number>(0);
 
   // Duración del contrato (para métricas por día/mes, especialmente en modo Independiente)
@@ -127,6 +133,81 @@ export function CalculatorView() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleLicitacionSubModeChange = (subMode: 'solo' | 'prestanombre' | 'consultoria') => {
+    setLicitacionSubMode(subMode);
+    if (subMode === 'solo') {
+      setTaxEnabled(true);
+      setSelectedTaxType('CON_FACTURA');
+      setInput((prev) => ({
+        ...prev,
+        negotiationMode: 'FORMAL_LICITACION',
+        iueTax: { ...prev.iueTax, enabled: true, payer: 'PROYECTO' },
+        guarantees: {
+          ...prev.guarantees,
+          hasBidBond: true,
+          hasPerformanceBond: true,
+        },
+        statutoryDeductions: {
+          retentionRatePct: 7,
+          isRecoverable: true,
+        },
+        titularCompany: {
+          ...prev.titularCompany,
+          enabled: false,
+          value: 0,
+        },
+      }));
+    } else if (subMode === 'prestanombre') {
+      setTaxEnabled(true);
+      setSelectedTaxType('CON_FACTURA');
+      setInput((prev) => ({
+        ...prev,
+        negotiationMode: 'SOCIOS_INTERNO',
+        iueTax: { ...prev.iueTax, enabled: true, payer: 'EMPRESA_TITULAR' },
+        guarantees: {
+          ...prev.guarantees,
+          hasBidBond: true,
+          hasPerformanceBond: true,
+        },
+        statutoryDeductions: {
+          retentionRatePct: 5,
+          isRecoverable: true,
+        },
+        titularCompany: {
+          ...prev.titularCompany,
+          enabled: true,
+          type: 'PERCENTAGE_GROSS',
+          value: prev.titularCompany.value || 8,
+          absorbsTaxes: true,
+          absorbsGuaranteesCost: true,
+        },
+      }));
+    } else if (subMode === 'consultoria') {
+      setTaxEnabled(false);
+      setSelectedTaxType('SIN_FACTURA');
+      setInput((prev) => ({
+        ...prev,
+        negotiationMode: 'SIMPLIFICADO',
+        iueTax: { ...prev.iueTax, enabled: false, payer: 'EXENTO' },
+        guarantees: {
+          ...prev.guarantees,
+          hasBidBond: false,
+          hasPerformanceBond: false,
+          hasAdvanceBond: false,
+        },
+        statutoryDeductions: {
+          retentionRatePct: 0,
+          isRecoverable: true,
+        },
+        titularCompany: {
+          ...prev.titularCompany,
+          enabled: false,
+          value: 0,
+        },
+      }));
+    }
   };
 
   // Cambio de modo de negociación con ajuste de preconfiguraciones
@@ -277,6 +358,14 @@ export function CalculatorView() {
   const durationInMonths = useMemo(() => {
     return durationInDays / 30;
   }, [durationInDays]);
+
+  const netPerDay = useMemo(() => {
+    return durationInDays > 0 ? result.totalNetProfitPool / durationInDays : 0;
+  }, [result.totalNetProfitPool, durationInDays]);
+
+  const netPerMonth = useMemo(() => {
+    return durationInMonths > 0 ? result.totalNetProfitPool / durationInMonths : 0;
+  }, [result.totalNetProfitPool, durationInMonths]);
 
   // Manejo de Socios Dinámicos
   const addPartner = (roleName?: string) => {
@@ -464,6 +553,22 @@ export function CalculatorView() {
     setActiveTab(tabSequence[nextIndex]);
   };
 
+  // Si está en el Home de nivel superior, renderizar la interfaz limpia blanca/crema
+  if (currentView === 'home') {
+    return (
+      <HomeView
+        onSelectLicitaciones={() => {
+          setCurrentView('licitaciones');
+          handleLicitacionSubModeChange('solo');
+        }}
+        onSelectInversion={() => {
+          setCurrentView('inversion');
+          handleModeChange('COOPERATIVA_INVERSION');
+        }}
+      />
+    );
+  }
+
   return (
     <div className={styles.pageWrapper}>
       <div className={styles.shell}>
@@ -473,11 +578,25 @@ export function CalculatorView() {
         <header className={styles.cockpitHeader}>
           <div className={styles.brandRow}>
             <div className={styles.brandInfo}>
-              <span className={styles.brandBadge}>DEAL DESK</span>
+              <button
+                type="button"
+                className={styles.backHomeBtn}
+                onClick={() => setCurrentView('home')}
+                title="Volver al menú principal"
+              >
+                ← Inicio
+              </button>
+              <span className={styles.brandBadge}>
+                {currentView === 'licitaciones' ? 'LICITACIONES' : 'INVERSIÓN'}
+              </span>
               <div>
-                <h1 className={styles.brandTitle}>Calculadora de Negociación y Reparto</h1>
+                <h1 className={styles.brandTitle}>
+                  {currentView === 'licitaciones' ? 'Licitaciones / Contratos' : 'Inversión / Extra'}
+                </h1>
                 <p className={styles.brandSubtitle}>
-                  Ingeniería de costos, peajes y liquidación pre-firma de proyectos y licitaciones en Bolivia.
+                  {currentView === 'licitaciones'
+                    ? 'Calcula impuestos, boletas, prestanombre o consultoría menor. Monto del contrato → ganancia real.'
+                    : 'Cooperativa, inversionista y comunarios. Negocia en base al capital invertido y reparte utilidades.'}
                 </p>
               </div>
             </div>
@@ -515,43 +634,45 @@ export function CalculatorView() {
             </div>
           </div>
 
-          {/* 3 MODOS DE NEGOCIACIÓN UNIFICADOS CON PRESETS DE UN CLIC */}
-          <div className={styles.modeSelectorContainer}>
-            <div className={styles.modeHeaderRow}>
-              <span className={styles.modeLabel}>Modo de Negociación:</span>
-              <span className={styles.modeBadge}>
-                {input.negotiationMode === 'FORMAL_LICITACION' && 'Empresa / Licitación'}
-                {(input.negotiationMode === 'SOCIOS_INTERNO' || input.negotiationMode === 'SIMPLIFICADO') && 'Consultor / Prestanombre'}
-                {input.negotiationMode === 'COOPERATIVA_INVERSION' && 'Cooperativa / Inversión'}
-              </span>
+          {/* SELECTOR DE SUB-MODOS CUANDO ESTÁ EN LICITACIONES */}
+          {currentView === 'licitaciones' && (
+            <div className={styles.modeSelectorContainer}>
+              <div className={styles.modeHeaderRow}>
+                <span className={styles.modeLabel}>Modo de Licitación / Contrato:</span>
+                <span className={styles.modeBadge}>
+                  {licitacionSubMode === 'solo' && 'Solo (Empresa / Consultora)'}
+                  {licitacionSubMode === 'prestanombre' && 'Con Prestanombre (Trato A-B)'}
+                  {licitacionSubMode === 'consultoria' && 'Consultoría Menor (Individual)'}
+                </span>
+              </div>
+              <div className={styles.modeGrid}>
+                <button
+                  type="button"
+                  className={`${styles.modeBtn} ${licitacionSubMode === 'solo' ? styles.modeBtnActive : ''}`}
+                  onClick={() => handleLicitacionSubModeChange('solo')}
+                >
+                  <span className={styles.modeBtnTitle}>🏛️ Solo</span>
+                  <span className={styles.modeBtnSubtitle}>Todo en un solo actor · Impuestos + Boletas</span>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.modeBtn} ${licitacionSubMode === 'prestanombre' ? styles.modeBtnActive : ''}`}
+                  onClick={() => handleLicitacionSubModeChange('prestanombre')}
+                >
+                  <span className={styles.modeBtnTitle}>🤝 Con Prestanombre</span>
+                  <span className={styles.modeBtnSubtitle}>Legal (Titular) vs Operativa (Ejecutor)</span>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.modeBtn} ${licitacionSubMode === 'consultoria' ? styles.modeBtnActive : ''}`}
+                  onClick={() => handleLicitacionSubModeChange('consultoria')}
+                >
+                  <span className={styles.modeBtnTitle}>👤 Consultoría Menor</span>
+                  <span className={styles.modeBtnSubtitle}>Individual · Sin IUE · Neto por día/mes</span>
+                </button>
+              </div>
             </div>
-            <div className={styles.modeGrid}>
-              <button
-                type="button"
-                className={`${styles.modeBtn} ${input.negotiationMode === 'FORMAL_LICITACION' ? styles.modeBtnActive : ''}`}
-                onClick={() => handleModeChange('FORMAL_LICITACION')}
-              >
-                <span className={styles.modeBtnTitle}>🏛️ Empresa / Licitación</span>
-                <span className={styles.modeBtnSubtitle}>SICOES · Impuestos + Boletas + IUE</span>
-              </button>
-              <button
-                type="button"
-                className={`${styles.modeBtn} ${(input.negotiationMode === 'SOCIOS_INTERNO' || input.negotiationMode === 'SIMPLIFICADO') ? styles.modeBtnActive : ''}`}
-                onClick={() => handleModeChange('SOCIOS_INTERNO')}
-              >
-                <span className={styles.modeBtnTitle}>👤 Consultor / Prestanombre</span>
-                <span className={styles.modeBtnSubtitle}>Independiente o Trato A-B · Neto por día</span>
-              </button>
-              <button
-                type="button"
-                className={`${styles.modeBtn} ${input.negotiationMode === 'COOPERATIVA_INVERSION' ? styles.modeBtnActive : ''}`}
-                onClick={() => handleModeChange('COOPERATIVA_INVERSION')}
-              >
-                <span className={styles.modeBtnTitle}>⛏️ Cooperativa / Inversión</span>
-                <span className={styles.modeBtnSubtitle}>Canon minero · Aporte comunidad</span>
-              </button>
-            </div>
-          </div>
+          )}
 
           {/* BARRA FIJA DE 5 PESTAÑAS (NAV TABS: RESUMEN, NEGOCIACIÓN, COSTOS, REPARTO, DETALLE) */}
           <nav className={styles.navTabContainer} aria-label="Navegación principal">
@@ -713,29 +834,157 @@ export function CalculatorView() {
               </div>
             </div>
           </section>
+        ) : licitacionSubMode === 'prestanombre' ? (
+          <section className={styles.metricsGrid}>
+            {/* Card 1: Titular Company (Legal / Facturación) */}
+            <div className={styles.heroMetricCard} style={{ borderColor: '#6366f1' }}>
+              <div className={styles.metricEyebrow}>
+                <span>🏢 Titular (NIT / Legal)</span>
+                <span className={styles.highlightPill}>
+                  {result.titularCompany.effectivePctOfGross}% del contrato
+                </span>
+              </div>
+              <div className={styles.heroValue} style={{ color: '#818cf8' }}>
+                {fmt(result.titularCompany.amount)}
+              </div>
+              <div className={styles.metricSubtext}>
+                <span>
+                  {result.titularCompany.name || 'Empresa Prestanombre'} | Asume: {result.titularCompany.absorbsTaxes ? 'Impuestos + ' : ''}Boletas + Retención 5%
+                </span>
+              </div>
+            </div>
+
+            {/* Card 2: Ejecutor (Equipo Técnico) */}
+            <div className={styles.heroMetricCard} style={{ borderColor: '#10b981' }}>
+              <div className={styles.metricEyebrow}>
+                <span>👷 Ejecutor (Equipo Real)</span>
+                <span className={styles.statusPillGreen}>
+                  {(result.titularCompany.varianceAnalysis.ifTitularAbsorbsTaxes.effectiveMargin || 0).toFixed(1)}% margen
+                </span>
+              </div>
+              <div className={styles.heroValue} style={{ color: '#34d399' }}>
+                {fmt(result.titularCompany.varianceAnalysis.ifTitularAbsorbsTaxes.teamNetGain || result.totalNetProfitPool)}
+              </div>
+              <div className={styles.metricSubtext}>
+                <span>
+                  Ganancia neta limpia tras cubrir personal, compras, diezmo y gastos de obra
+                </span>
+              </div>
+            </div>
+
+            {/* Card 3: Varianza Fiscal A vs B */}
+            <div className={styles.metricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Varianza Fiscal A vs B</span>
+                <span className={styles.warningPill}>Impacto Tributario</span>
+              </div>
+              <div className={styles.metricValue} style={{ color: '#fbbf24' }}>
+                +{fmt(result.titularCompany.varianceAnalysis.taxBurdenDifference)}
+              </div>
+              <div className={styles.metricSubtext}>
+                Ahorro neto para el ejecutor si Titular absorbe impuestos y crédito fiscal en su balance
+              </div>
+            </div>
+
+            {/* Card 4: Total Contrato Bruto */}
+            <div className={styles.metricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Contrato Total Bruto</span>
+                <span style={{ color: '#94a3b8' }}>Base 100%</span>
+              </div>
+              <div className={styles.metricValue} style={{ color: '#f8fafc' }}>
+                {fmt(input.contractGrossAmount)}
+              </div>
+              <div className={styles.metricSubtext}>
+                Facturación total adjudicada al NIT titular
+              </div>
+            </div>
+          </section>
+        ) : licitacionSubMode === 'consultoria' ? (
+          <section className={styles.metricsGrid}>
+            {/* Card 1: Te quedan X limpios */}
+            <div className={styles.heroMetricCard} style={{ borderColor: '#0ea5e9' }}>
+              <div className={styles.metricEyebrow}>
+                <span>💰 Te quedan limpios en mano</span>
+                <span className={styles.statusPillGreen}>Sin IUE Empresarial</span>
+              </div>
+              <div className={styles.heroValue} style={{ color: '#38bdf8' }}>
+                {fmt(result.totalNetProfitPool)}
+              </div>
+              <div className={styles.metricSubtext}>
+                <span>
+                  Plazo total: <strong>{contractDurationValue} {contractDurationUnit}</strong> (~{Math.round(durationInDays)} días)
+                </span>
+              </div>
+            </div>
+
+            {/* Card 2: Neto por Mes */}
+            <div className={styles.metricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Honorario Neto Mensual</span>
+                <span style={{ color: '#34d399' }}>● Promedio</span>
+              </div>
+              <div className={styles.metricValue} style={{ color: '#34d399' }}>
+                {fmt(netPerMonth)}/mes
+              </div>
+              <div className={styles.metricSubtext}>
+                Equivalente mensual neto tras impuestos
+              </div>
+            </div>
+
+            {/* Card 3: Neto por Día */}
+            <div className={styles.metricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Honorario Neto por Día</span>
+                <span style={{ color: '#fbbf24' }}>● Jornada</span>
+              </div>
+              <div className={styles.metricValue} style={{ color: '#fbbf24' }}>
+                {fmt(netPerDay)}/día
+              </div>
+              <div className={styles.metricSubtext}>
+                Calculado sobre 22 días hábiles de trabajo al mes
+              </div>
+            </div>
+
+            {/* Card 4: Retenciones & Gastos */}
+            <div className={styles.metricCard}>
+              <div className={styles.metricEyebrow}>
+                <span>Deducciones & Retención</span>
+                <span className={styles.dangerPill}>
+                  -{(100 - result.summaryMetrics.effectiveTakeRates.teamNetProfitPct).toFixed(1)}%
+                </span>
+              </div>
+              <div className={styles.metricValue} style={{ color: '#f43f5e' }}>
+                -{fmt(result.taxes.taxAmount + result.directCosts.total)}
+              </div>
+              <div className={styles.metricSubtext}>
+                Retención tributaria ({input.taxScenario.type === 'RETENCION_LEY' ? '15.5%' : 'IVA/IT'}) + Gastos directos
+              </div>
+            </div>
+          </section>
         ) : (
           <section className={styles.metricsGrid}>
-            {/* Hero: Proyectista / Primer Socio Real Gain */}
+            {/* Modo Solo: Una tarjeta principal destacada de ganancia neta */}
             <div className={styles.heroMetricCard}>
               <div className={styles.metricEyebrow}>
-                <span>{partners[0]?.name || 'Ganancia Proyectista'}</span>
+                <span>{partners[0]?.name || 'Ganancia Neta Limpia (1 Actor)'}</span>
                 {hasContractAmount && (
                   <span className={styles.highlightPill}>
-                    {result.distribution.partners[0]?.effectiveMarginOnGross || 0}% margen
+                    {result.summaryMetrics.effectiveTakeRates.teamNetProfitPct.toFixed(1)}% margen neto
                   </span>
                 )}
               </div>
               <div className={styles.heroValue}>
-                {hasContractAmount ? fmt(result.distribution.partners[0]?.totalAmount || 0) : `0 ${currency}`}
+                {hasContractAmount ? fmt(result.totalNetProfitPool) : `0 ${currency}`}
               </div>
               <div className={styles.metricSubtext}>
                 {hasContractAmount ? (
                   <span>
-                    Líquido: <strong>{fmt(result.distribution.partners[0]?.immediateAmount || 0)}</strong>
+                    Líquido: <strong>{fmt(result.immediateDistributablePool)}</strong>
                     {result.deferredRetentionPool > 0 && (
                       <span style={{ color: '#fbbf24' }}>
                         {' '}
-                        | Cierre: {fmt(result.distribution.partners[0]?.deferredAmount || 0)}
+                        | Cierre: {fmt(result.deferredRetentionPool)}
                       </span>
                     )}
                   </span>
@@ -755,11 +1004,11 @@ export function CalculatorView() {
                 {fmt(result.immediateDistributablePool)}
               </div>
               <div className={styles.metricSubtext}>
-                Distribuible durante la obra
+                Flujo disponible durante la ejecución de la obra
               </div>
             </div>
 
-            {/* Fondo Retenido / Caja de Salud (Diferido) */}
+            {/* Fondo Retenido / Boletas (Diferido) */}
             <div className={styles.metricCard}>
               <div className={styles.metricEyebrow}>
                 <span>Retención ({result.statutoryDeduction.ratePct}%)</span>
@@ -772,12 +1021,12 @@ export function CalculatorView() {
               </div>
               <div className={styles.metricSubtext}>
                 {result.statutoryDeduction.isRecoverable
-                  ? 'Cobro en Recepción Definitiva'
+                  ? 'Cobro en Recepción Definitiva de obra'
                   : 'Aporte normativo no devuelto'}
               </div>
             </div>
 
-            {/* Peajes & Fricciones Totales */}
+            {/* Peajes & Cargas Totales */}
             <div className={styles.metricCard}>
               <div className={styles.metricEyebrow}>
                 <span>Costos & Peajes Totales</span>

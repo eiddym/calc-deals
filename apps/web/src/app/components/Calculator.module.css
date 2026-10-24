@@ -97,6 +97,27 @@
   padding: 0.2rem;
 }
 
+.backHomeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #93c5fd;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.backHomeBtn:hover {
+  background: rgba(37, 99, 235, 0.25);
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
 .currencyBtn {
   border: none;
   background: transparent;
