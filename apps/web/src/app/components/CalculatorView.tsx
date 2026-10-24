@@ -138,12 +138,12 @@ export function CalculatorView() {
           isRecoverable: true,
         },
       }));
-    } else if (mode === 'SOCIOS_INTERNO') {
+    } else if (mode === 'SOCIOS_INTERNO' || mode === 'SIMPLIFICADO') {
       setTaxEnabled(false);
       setSelectedTaxType('SIN_FACTURA');
       setInput((prev) => ({
         ...prev,
-        negotiationMode: mode,
+        negotiationMode: 'SOCIOS_INTERNO',
         iueTax: { ...prev.iueTax, enabled: false, payer: 'EXENTO' },
         guarantees: {
           ...prev.guarantees,
@@ -154,11 +154,6 @@ export function CalculatorView() {
         statutoryDeductions: {
           retentionRatePct: 0,
           isRecoverable: true,
-        },
-        titularCompany: {
-          ...prev.titularCompany,
-          enabled: false,
-          value: 0,
         },
       }));
     } else if (mode === 'COOPERATIVA_INVERSION') {
@@ -177,24 +172,6 @@ export function CalculatorView() {
         statutoryDeductions: {
           retentionRatePct: 5,
           isRecoverable: false, // Canon / aporte comunal
-        },
-      }));
-    } else if (mode === 'SIMPLIFICADO') {
-      setTaxEnabled(false);
-      setSelectedTaxType('SIN_FACTURA');
-      setInput((prev) => ({
-        ...prev,
-        negotiationMode: mode,
-        iueTax: { ...prev.iueTax, enabled: false, payer: 'EXENTO' },
-        guarantees: {
-          ...prev.guarantees,
-          hasBidBond: false,
-          hasPerformanceBond: false,
-          hasAdvanceBond: false,
-        },
-        statutoryDeductions: {
-          retentionRatePct: 0,
-          isRecoverable: true,
         },
       }));
     }
@@ -489,15 +466,14 @@ export function CalculatorView() {
             </div>
           </div>
 
-          {/* 4 MODOS DE NEGOCIACIÓN CON PRESETS DE UN CLIC */}
+          {/* 3 MODOS DE NEGOCIACIÓN UNIFICADOS CON PRESETS DE UN CLIC */}
           <div className={styles.modeSelectorContainer}>
             <div className={styles.modeHeaderRow}>
               <span className={styles.modeLabel}>Modo de Negociación:</span>
               <span className={styles.modeBadge}>
                 {input.negotiationMode === 'FORMAL_LICITACION' && 'Empresa / Licitación'}
-                {input.negotiationMode === 'SOCIOS_INTERNO' && 'Prestanombre A-B'}
-                {input.negotiationMode === 'COOPERATIVA_INVERSION' && 'Cooperativa'}
-                {input.negotiationMode === 'SIMPLIFICADO' && 'Consultor Independiente'}
+                {(input.negotiationMode === 'SOCIOS_INTERNO' || input.negotiationMode === 'SIMPLIFICADO') && 'Consultor / Prestanombre'}
+                {input.negotiationMode === 'COOPERATIVA_INVERSION' && 'Cooperativa / Inversión'}
               </span>
             </div>
             <div className={styles.modeGrid}>
@@ -507,15 +483,15 @@ export function CalculatorView() {
                 onClick={() => handleModeChange('FORMAL_LICITACION')}
               >
                 <span className={styles.modeBtnTitle}>🏛️ Empresa / Licitación</span>
-                <span className={styles.modeBtnSubtitle}>Escenario 2 · Impuestos + IUE</span>
+                <span className={styles.modeBtnSubtitle}>SICOES · Impuestos + Boletas + IUE</span>
               </button>
               <button
                 type="button"
-                className={`${styles.modeBtn} ${input.negotiationMode === 'SOCIOS_INTERNO' ? styles.modeBtnActive : ''}`}
+                className={`${styles.modeBtn} ${(input.negotiationMode === 'SOCIOS_INTERNO' || input.negotiationMode === 'SIMPLIFICADO') ? styles.modeBtnActive : ''}`}
                 onClick={() => handleModeChange('SOCIOS_INTERNO')}
               >
-                <span className={styles.modeBtnTitle}>🤝 Prestanombre A-B</span>
-                <span className={styles.modeBtnSubtitle}>Escenario 1 · Negociación justa</span>
+                <span className={styles.modeBtnTitle}>👤 Consultor / Prestanombre</span>
+                <span className={styles.modeBtnSubtitle}>Independiente o Trato A-B · Neto por día</span>
               </button>
               <button
                 type="button"
@@ -523,15 +499,7 @@ export function CalculatorView() {
                 onClick={() => handleModeChange('COOPERATIVA_INVERSION')}
               >
                 <span className={styles.modeBtnTitle}>⛏️ Cooperativa / Inversión</span>
-                <span className={styles.modeBtnSubtitle}>Canon · Comunidad</span>
-              </button>
-              <button
-                type="button"
-                className={`${styles.modeBtn} ${input.negotiationMode === 'SIMPLIFICADO' ? styles.modeBtnActive : ''}`}
-                onClick={() => handleModeChange('SIMPLIFICADO')}
-              >
-                <span className={styles.modeBtnTitle}>👤 Consultor Independiente</span>
-                <span className={styles.modeBtnSubtitle}>Escenario 3 · Neto por día</span>
+                <span className={styles.modeBtnSubtitle}>Canon minero · Aporte comunidad</span>
               </button>
             </div>
           </div>
@@ -671,27 +639,29 @@ export function CalculatorView() {
           {activeTab === 'resumen' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               {/* BANNER CONTEXTUAL SEGÚN ESCENARIO */}
-              {input.negotiationMode === 'SOCIOS_INTERNO' && (
+              {(input.negotiationMode === 'SOCIOS_INTERNO' || input.negotiationMode === 'SIMPLIFICADO') && (
                 <div style={{ background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '12px', padding: '0.85rem 1rem' }}>
-                  <strong style={{ color: '#60a5fa' }}>Escenario 1 · Prestanombre</strong>
+                  <strong style={{ color: '#60a5fa' }}>👤 Consultor Independiente & Prestanombre</strong>
                   <p style={{ margin: '0.3rem 0 0', fontSize: '0.82rem', color: '#cbd5e1' }}>
-                    A negocia su parte. B (titular) debe ver si el trato es justo después de asumir boletas, impuestos e IUE.
+                    {input.titularCompany?.enabled
+                      ? 'Trato A-B con Prestanombre activo: Verifica si el acuerdo es justo tras impuestos, boletas y fee de la titular.'
+                      : 'Consultor Independiente directo: Sin intermediarios ni prestanombre. Revisa tu ganancia neta limpia y el neto por día según la duración pactada.'}
                   </p>
                 </div>
               )}
               {input.negotiationMode === 'FORMAL_LICITACION' && (
                 <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '12px', padding: '0.85rem 1rem' }}>
-                  <strong style={{ color: '#34d399' }}>Escenario 2 · Empresa / Licitación</strong>
+                  <strong style={{ color: '#34d399' }}>🏛️ Empresa / Licitación</strong>
                   <p style={{ margin: '0.3rem 0 0', fontSize: '0.82rem', color: '#cbd5e1' }}>
-                    Evalúa si la empresa se queda con el proyecto después de todos los costos, boletas e IUE.
+                    Licitación formal corporativa o estatal (SICOES): Evalúa la utilidad neta retenida tras deducir impuestos (16%), previsión de IUE (25%), boletas bancarias y retenciones de pliego.
                   </p>
                 </div>
               )}
-              {input.negotiationMode === 'SIMPLIFICADO' && (
+              {input.negotiationMode === 'COOPERATIVA_INVERSION' && (
                 <div style={{ background: 'rgba(251, 191, 36, 0.12)', border: '1px solid rgba(251, 191, 36, 0.3)', borderRadius: '12px', padding: '0.85rem 1rem' }}>
-                  <strong style={{ color: '#fbbf24' }}>Escenario 3 · Consultor Independiente</strong>
+                  <strong style={{ color: '#fbbf24' }}>⛏️ Cooperativa / Inversión</strong>
                   <p style={{ margin: '0.3rem 0 0', fontSize: '0.82rem', color: '#cbd5e1' }}>
-                    Sin IUE. Activa solo lo que aplica. Mira cuánto te queda limpio y el neto por día según la duración.
+                    Explotación o servicios mineros/comunitarios: Deducción de canon comunal no recuperable y retención en la fuente (15.5%).
                   </p>
                 </div>
               )}

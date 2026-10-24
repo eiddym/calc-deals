@@ -200,13 +200,13 @@
 
 .modeGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.4rem;
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
 }
 
 @media (min-width: 640px) {
   .modeGrid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
