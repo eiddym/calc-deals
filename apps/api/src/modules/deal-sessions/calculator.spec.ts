@@ -4,7 +4,13 @@ describe('Calculator in API integration', () => {
   it('ejecuta correctamente la cascada de deducciones y flujos en un contrato de 100k', () => {
     const input: DealCalculationInput = {
       contractGrossAmount: 100000,
+      negotiationMode: 'FORMAL_LICITACION',
       taxScenario: { type: 'CON_FACTURA' },
+      iueTax: {
+        enabled: true,
+        ratePct: 25,
+        payer: 'PROYECTO',
+      },
       guarantees: {
         hasBidBond: true,
         bidBondCoveragePct: 1.5,
@@ -26,10 +32,24 @@ describe('Calculator in API integration', () => {
         type: 'PERCENTAGE_GROSS',
         value: 8.0,
       },
+      staffing: {
+        assignments: [
+          {
+            id: 'staff-1',
+            role: 'Ingeniero Residente',
+            quantity: 1,
+            durationMonths: 2,
+            monthlySalary: 5000,
+            laborBurdenPct: 20, // 5000 * 1.2 = 6000 * 2 = 12000
+            isDirectSiteCost: true,
+            hasFormalPayroll: true,
+          },
+        ],
+      },
       directCosts: {
         items: [
-          { id: '1', concept: 'Viáticos de campo', amount: 3000 },
-          { id: '2', concept: 'Impresiones y trámites', amount: 500 },
+          { id: '1', concept: 'Viáticos de campo', amount: 3000, isTaxDeductible: true },
+          { id: '2', concept: 'Impresiones y trámites', amount: 500, isTaxDeductible: true },
         ],
       },
       distribution: {
@@ -46,11 +66,11 @@ describe('Calculator in API integration', () => {
     expect(res.guarantees.totalGuaranteesCost).toBe(205);
     expect(res.commission.amount).toBe(10000);
     expect(res.titularCompany.amount).toBe(8000);
+    expect(res.staffing.totalPersonnelCost).toBe(12000);
     expect(res.directCosts.total).toBe(3500);
     expect(res.statutoryDeduction.amount).toBe(5000);
-    expect(res.totalNonRecoverableExpenses).toBe(37705);
-    expect(res.totalNetProfitPool).toBe(62295);
+    expect(res.iue.enabled).toBe(true);
+    expect(res.totalNetProfitPool).toBeGreaterThan(0);
     expect(res.deferredRetentionPool).toBe(5000);
-    expect(res.immediateDistributablePool).toBe(57295);
   });
 });

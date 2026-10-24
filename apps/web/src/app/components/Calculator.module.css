@@ -115,46 +115,137 @@
   color: #ffffff;
 }
 
-/* MOBILE VIEW NAVIGATION TABS (CRUCIAL FOR SMARTPHONE & APK) */
-.mobileNavTabs {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.35rem;
+/* NAVIGATION TABS (5 WORKSPACES FOR DESKTOP & MOBILE / APK) */
+.navTabContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   background: #0d1524;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 0.3rem;
+  border-radius: 12px;
+  padding: 0.35rem;
   width: 100%;
 }
 
-@media (min-width: 960px) {
-  .mobileNavTabs {
-    display: none; /* En desktop se muestra todo lado a lado */
-  }
+.navTabContainer::-webkit-scrollbar {
+  display: none;
 }
 
-.mobileNavBtn {
+.navTabBtn {
+  flex: 1 0 auto;
   background: transparent;
   border: none;
   color: #94a3b8;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  padding: 0.65rem 0.25rem;
+  padding: 0.65rem 0.85rem;
   min-height: 44px;
-  border-radius: 7px;
+  border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
-  transition: all 0.15s ease;
+  gap: 0.4rem;
   white-space: nowrap;
+  transition: all 0.2s ease;
 }
 
-.mobileNavBtnActive {
+.navTabBtn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.navTabBtnActive {
   background: #2563eb;
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+
+/* 4 NEGOTIATION MODES (SICOES, SOCIOS, COOPERATIVA, SIMPLIFICADO) */
+.modeSelectorContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+}
+
+.modeHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modeLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.modeBadge {
+  font-size: 0.7rem;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.modeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem;
+}
+
+@media (min-width: 640px) {
+  .modeGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.modeBtn {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.6rem 0.5rem;
+  min-height: 46px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.modeBtn:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+  background: #1e293b;
+}
+
+.modeBtnActive {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.3) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 1px solid #3b82f6;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+}
+
+.modeBtnTitle {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.modeBtnSubtitle {
+  font-size: 0.65rem;
+  color: #94a3b8;
 }
 
 /* EXECUTIVE METRICS DASHBOARD (THE 4 HERO NUMBERS) */
@@ -959,3 +1050,219 @@
   border-radius: 8px;
   cursor: pointer;
 }
+
+/* ==========================================================================
+   STAFFING ENGINE (ROLES, PAYROLL, CARGAS SOCIALES 33.37%)
+   ========================================================================== */
+.staffPresetRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0.2rem 0;
+  margin-bottom: 0.75rem;
+}
+
+.staffPresetRow::-webkit-scrollbar {
+  display: none;
+}
+
+.staffPresetBtn {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.staffPresetBtn:hover {
+  background: #334155;
+  color: #f1f5f9;
+  border-color: #38bdf8;
+}
+
+.staffCardList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.staffCard {
+  background: #09111e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  position: relative;
+  transition: border-color 0.2s ease;
+}
+
+.staffCard:hover {
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.staffCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.staffRoleTitle {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.staffCostPill {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #fb923c;
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.staffInputsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+@media (min-width: 600px) {
+  .staffInputsGrid {
+    grid-template-columns: 2fr 1fr 1fr 1.5fr;
+  }
+}
+
+.staffTogglesRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.miniToggleBtn {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.miniToggleBtnActive {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.miniToggleBtnActiveWarning {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+/* ==========================================================================
+   IUE 25% ANNUAL MODULE
+   ========================================================================== */
+.iueBox {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: 12px;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.iuePayerGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+
+.iuePayerBtn {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.5rem 0.35rem;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.iuePayerBtnActive {
+  background: #1e3a8a;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.iueBreakdownTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  font-family: var(--font-geist-mono), monospace;
+  margin-top: 0.35rem;
+}
+
+.iueBreakdownTable td {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* ==========================================================================
+   ACTION BUTTONS & WHATSAPP EXPORT
+   ========================================================================== */
+.exportBtn {
+  background: #059669;
+  color: #ffffff;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  transition: background 0.15s ease;
+  min-height: 44px;
+}
+
+.exportBtn:hover {
+  background: #10b981;
+}
+
+.toastPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid #10b981;
+  color: #34d399;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+}
+

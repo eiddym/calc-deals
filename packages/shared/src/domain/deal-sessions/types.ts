@@ -5,11 +5,22 @@ export type DealSessionStatus =
   | 'CAIDO'
   | 'SUSPENDIDO';
 
+export type DealNegotiationMode =
+  | 'FORMAL_LICITACION'    // Licitaciones estatales / SICOES / Corporativas (Impuestos + Boletas + Retención + IUE)
+  | 'SOCIOS_INTERNO'       // Acuerdos entre socios privados (Sin factura, foco en reparto y costos de personal)
+  | 'COOPERATIVA_INVERSION' // Minería, áridos, inversión comunitaria (Canon / participación comunitaria)
+  | 'SIMPLIFICADO';        // Cotización rápida en campo (Bruto, gastos y ganancia neta)
+
 export type TaxScenarioType =
   | 'CON_FACTURA'     // IVA (13%) + IT (3%) = 16% nominal
   | 'RETENCION_LEY'   // 12.5% IUE + 3% IT = 15.5% para servicios
   | 'SIN_FACTURA'     // 0%
   | 'PERSONALIZADO';  // Tasa definida por el usuario
+
+export type IuePayerType =
+  | 'PROYECTO'        // Se descuenta de la bolsa líquida del negocio
+  | 'EMPRESA_TITULAR' // Lo asume la empresa titular que prestó el NIT
+  | 'EXENTO';         // No computar IUE (ej. trato informal o no aplicable)
 
 export type FeeCalculationType = 'PERCENTAGE_GROSS' | 'PERCENTAGE_NET' | 'FIXED';
 
@@ -17,75 +28,102 @@ export interface DirectCostItem {
   id: string;
   concept: string;
   amount: number;
+  isTaxDeductible?: boolean; // ¿Cuenta con factura/recibo formal deducible de IUE?
   category?: 'viaticos' | 'materiales' | 'subcontratos' | 'tramites' | 'otros';
 }
 
+export interface StaffAssignment {
+  id: string;
+  role: string;               // ej. "Ingeniero Residente", "Topógrafo", "Cadista"
+  quantity: number;           // Cantidad de personas
+  durationMonths: number;     // Meses de duración
+  monthlySalary: number;      // Salario mensual líquido pactado
+  laborBurdenPct: number;     // Carga social y beneficios (ej. 33.37% o 0% si es consultor por producto)
+  isDirectSiteCost: boolean;  // true: costo directo de obra | false: costo administrativo
+  hasFormalPayroll: boolean;  // true: en planilla formal deducible de IUE | false: pago en mano
+}
+
 export interface DealCalculationInput {
+  // Modo de Negociación Activo
+  negotiationMode?: DealNegotiationMode;
+
   // 1. Ingreso Base
   contractGrossAmount: number; // Monto bruto pactado / referencial (Bs o $)
 
-  // 2. Escenario Fiscal
+  // 2. Escenario Fiscal Mensual (IVA + IT)
   taxScenario: {
     type: TaxScenarioType;
     customRatePct?: number; // Si es personalizado (ej. 16)
     taxCreditPct?: number;  // % de crédito fiscal que se puede descargar (ej. 30% del IVA)
   };
 
+  // 2.1 Módulo Tributario Anual (IUE 25%)
+  iueTax: {
+    enabled: boolean;            // ¿Calcular previsión de IUE anual?
+    ratePct: number;             // 25% por ley en Bolivia
+    payer: IuePayerType;         // ¿Quién absorbe el pago del IUE?
+  };
+
   // 3. Garantías y Pólizas (Costos no recuperables de emisión)
   guarantees: {
-    // Boleta de Seriedad de Propuesta (usualmente 1% a 1.5% del referencial)
     hasBidBond: boolean;
     bidBondCoveragePct?: number;   // % afianzado (ej. 1.5%)
-    bidBondPremiumPct?: number;    // Costo de prima de la aseguradora/banco (ej. 2.0% del afianzado)
-    bidBondFixedCost?: number;     // O fee fijo bancario (ej. 350 Bs)
+    bidBondPremiumPct?: number;    // Prima aseguradora/banco (ej. 2.0%)
+    bidBondFixedCost?: number;     // O fee fijo bancario
 
-    // Boleta de Cumplimiento de Contrato (normativa 7% del contrato adjudicado)
     hasPerformanceBond: boolean;
-    performanceBondCoveragePct?: number; // default 7%
-    performanceBondPremiumPct?: number;  // Prima aseguradora (ej. 2.5% del afianzado)
+    performanceBondCoveragePct?: number; // default 7% normativo
+    performanceBondPremiumPct?: number;  // Prima aseguradora (ej. 2.5%)
     performanceBondFixedCost?: number;
 
-    // Boleta de Anticipo (ej. 20% del contrato)
     hasAdvanceBond: boolean;
-    advancePct?: number;                 // % del contrato recibido como anticipo (ej. 20%)
-    advanceBondPremiumPct?: number;      // Prima aseguradora sobre el monto del anticipo
+    advancePct?: number;                 // % anticipo recibido (ej. 20%)
+    advanceBondPremiumPct?: number;      // Prima aseguradora sobre anticipo
     advanceBondFixedCost?: number;
   };
 
-  // 4. Deducciones Normativas / Retenciones en Planilla (ej. 5% de caja de salud / fondo de garantía)
+  // 4. Deducciones Normativas / Retenciones en Planilla (5% a 7% Caja de Salud o Garantía)
   statutoryDeductions: {
-    retentionRatePct: number;    // ej. 5% (caja de salud o retención por planilla)
-    isRecoverable: boolean;      // true si es fondo de garantía devuelto al cierre, false si es aporte a caja
+    retentionRatePct: number;    // ej. 5% o 7%
+    isRecoverable: boolean;      // true si se devuelve en Recepción Definitiva, false si aporte a fondo perdido
   };
 
   // 5. Diezmo / Comisión de Adjudicación / Intermediario
   adjudicationCommission: {
     type: 'PERCENTAGE_GROSS' | 'FIXED';
-    value: number; // % sobre el bruto (ej. 10) o monto fijo en Bs
+    value: number; // % sobre el bruto o monto fijo en Bs
+    isTaxDeductible?: boolean; // Típicamente false (se paga en mano, por lo que no descuenta IUE)
   };
 
   // 6. Presta-Nombre / Empresa Titular / Maquila
   titularCompany: {
     type: FeeCalculationType; // % del bruto, % del neto o fijo
     value: number;            // ej. 8% por prestar el NIT y la firma
-    absorbsGuaranteesCost?: boolean; // ¿la empresa asume las primas de boletas o la bolsa común?
+    absorbsGuaranteesCost?: boolean; // ¿la empresa asume las primas de boletas?
+    absorbsIueCost?: boolean;        // ¿la empresa asume el IUE generado?
   };
 
-  // 7. Costos Operativos Directos
+  // 7. Personal y Asignación de Recursos (Staffing)
+  staffing: {
+    assignments: StaffAssignment[];
+  };
+
+  // 8. Costos Operativos Directos
   directCosts: {
     items: DirectCostItem[];
   };
 
-  // 8. Reparto de la Utilidad Neta
+  // 9. Reparto de la Utilidad Neta
   distribution: {
-    projectManagerPct: number; // % para el proyectista / ejecutor técnico
-    businessPartnerPct: number; // % para el socio comercial / gestor
-    contingencyFundPct: number; // % fondo de reserva / imprevistos
+    projectManagerPct: number; // % Proyectista
+    businessPartnerPct: number; // % Socio gestor
+    contingencyFundPct: number; // % Fondo de reserva / imprevistos
   };
 }
 
 export interface DealCalculationResult {
   contractGrossAmount: number;
+  negotiationMode: DealNegotiationMode;
 
   // Costos financieros de pólizas/boletas
   guarantees: {
@@ -98,13 +136,26 @@ export interface DealCalculationResult {
     totalGuaranteesCost: number;
   };
 
-  // Deducción impositiva
+  // Deducción impositiva mensual (IVA + IT)
   taxes: {
     type: TaxScenarioType;
     nominalRatePct: number;
     effectiveRatePct: number;
     taxAmount: number;
     taxCreditSavings: number;
+  };
+
+  // Previsión de IUE Anual (25%)
+  iue: {
+    enabled: boolean;
+    ratePct: number;
+    payer: IuePayerType;
+    deductibleExpensesTotal: number;    // Gastos formales que bajan el IUE
+    nonDeductibleExpensesTotal: number; // Gastos informales (diezmo, sin factura) que NO bajan el IUE
+    taxableProfitBase: number;          // Utilidad neta imponible ante el SIN
+    estimatedIueAmount: number;         // 25% de la utilidad imponible
+    deductedFromProjectPool: number;    // Descontado de la ganancia si payer === 'PROYECTO'
+    companyAbsorbedIue: number;         // Si payer === 'EMPRESA_TITULAR'
   };
 
   // Retención normativa (caja / pliego)
@@ -126,6 +177,14 @@ export interface DealCalculationResult {
     effectivePctOfGross: number;
   };
 
+  // Personal y Staffing
+  staffing: {
+    totalPersonnelCost: number;
+    directSitePersonnelCost: number;
+    administrativePersonnelCost: number;
+    assignmentsCount: number;
+  };
+
   // Costos directos de ejecución
   directCosts: {
     total: number;
@@ -136,14 +195,9 @@ export interface DealCalculationResult {
   totalNonRecoverableExpenses: number;
 
   // Flujo de Caja en Dos Fases:
-  // 1. Inmediato: Dinero líquido disponible durante la ejecución (después de descontar retención temporal si es recuperable)
-  immediateDistributablePool: number;
-
-  // 2. Diferido: Monto retenido que se cobrará tras recepción definitiva (si isRecoverable = true)
-  deferredRetentionPool: number;
-
-  // 3. Bolsa Neta Total (Inmediato + Diferido)
-  totalNetProfitPool: number;
+  immediateDistributablePool: number; // Disponible durante la ejecución
+  deferredRetentionPool: number;      // Retención temporal cobrada en Recepción Definitiva
+  totalNetProfitPool: number;         // Inmediato + Diferido
 
   // Repartición detallada
   distribution: {
@@ -152,7 +206,7 @@ export interface DealCalculationResult {
       immediateAmount: number;
       deferredAmount: number;
       totalAmount: number;
-      effectiveMarginOnGross: number; // % de ganancia real sobre el bruto
+      effectiveMarginOnGross: number; // Margen real sobre el bruto
     };
     businessPartner: {
       pct: number;
@@ -170,15 +224,17 @@ export interface DealCalculationResult {
   // Métricas de visualización y control
   summaryMetrics: {
     grossAmount: number;
-    governmentAndTaxesTotal: number;  // Impuestos + aportes normativos no recuperables
+    governmentAndTaxesTotal: number;  // Impuestos (IVA/IT + IUE de proyecto)
     financialGuaranteesTotal: number; // Costo primas bancarias / seguros
     commercialFeesTotal: number;      // Diezmo + Fee empresa titular
-    directOperatingCostsTotal: number; // Gastos de campo
-    teamNetProfitTotal: number;       // Lo que le queda al equipo (Proyectista + Socios)
+    personnelCostsTotal: number;      // Planilla de personal
+    directOperatingCostsTotal: number; // Gastos de campo e insumos
+    teamNetProfitTotal: number;       // Lo que le queda al equipo
     effectiveTakeRates: {
       governmentPct: number;
       guaranteesPct: number;
       commercialFeesPct: number;
+      personnelPct: number;
       directCostsPct: number;
       teamNetProfitPct: number;
     };
