@@ -32,7 +32,35 @@ export function SoloModeView({
   onCopySummary,
   isGeneratingPdf,
 }: SoloModeViewProps) {
-  const [durationMonths, setDurationMonths] = useState<number>(6);
+  const [durationMonths, setDurationMonths] = useState<number>(2);
+
+  // Cambiar duración del contrato y limitar roles para no exceder la duración total
+  const handleDurationChange = (newMonths: number) => {
+    const valid = Math.max(1, newMonths);
+    setDurationMonths(valid);
+    setInput((prev) => ({
+      ...prev,
+      staffing: {
+        assignments: prev.staffing.assignments.map((s) => ({
+          ...s,
+          durationMonths: s.durationMonths > valid ? valid : s.durationMonths,
+        })),
+      },
+    }));
+  };
+
+  // Sincronizar meses de todo el personal con la duración total del contrato
+  const handleSyncStaffDuration = () => {
+    setInput((prev) => ({
+      ...prev,
+      staffing: {
+        assignments: prev.staffing.assignments.map((s) => ({
+          ...s,
+          durationMonths,
+        })),
+      },
+    }));
+  };
 
   // Collapsible state for the 5 blocks
   const [openBlocks, setOpenBlocks] = useState({
@@ -47,9 +75,9 @@ export function SoloModeView({
     setOpenBlocks((prev) => ({ ...prev, [block]: !prev[block] }));
   };
 
-  // CARGAR PLANTILLA GAD POTOSÍ (450.000 Bs)
+  // CARGAR PLANTILLA GAD POTOSÍ (450.000 Bs · 2 Meses · Personal 248.000 Bs)
   const handleLoadGadPotosiTemplate = () => {
-    setDurationMonths(6);
+    setDurationMonths(2);
     setInput((prev) => ({
       ...prev,
       negotiationMode: 'FORMAL_LICITACION',
@@ -98,40 +126,60 @@ export function SoloModeView({
         assignments: [
           {
             id: 'gad-staff-1',
-            role: 'Director de Proyecto (Ingeniero Civil Senior)',
+            role: 'Director de Estudio / Gerente de Proyecto',
             quantity: 1,
-            durationMonths: 6,
-            monthlySalary: 12000,
-            laborBurdenPct: 33.37,
+            durationMonths: 2,
+            monthlySalary: 30000,
+            laborBurdenPct: 0,
             isDirectSiteCost: true,
             hasFormalPayroll: true,
           },
           {
             id: 'gad-staff-2',
-            role: 'Especialista Estructural / Ambiental',
+            role: 'Especialista Estructural y Geotécnico',
             quantity: 1,
-            durationMonths: 4,
-            monthlySalary: 9000,
-            laborBurdenPct: 33.37,
+            durationMonths: 2,
+            monthlySalary: 25000,
+            laborBurdenPct: 0,
             isDirectSiteCost: true,
             hasFormalPayroll: true,
           },
           {
             id: 'gad-staff-3',
-            role: 'Ingeniero Residente de Obra',
+            role: 'Especialista Hidráulico e Hidrológico',
             quantity: 1,
-            durationMonths: 6,
-            monthlySalary: 8500,
-            laborBurdenPct: 33.37,
+            durationMonths: 2,
+            monthlySalary: 25000,
+            laborBurdenPct: 0,
             isDirectSiteCost: true,
             hasFormalPayroll: true,
           },
           {
             id: 'gad-staff-4',
-            role: 'Topógrafo y Cadista de Campo',
+            role: 'Especialista Ambiental y Social',
             quantity: 1,
-            durationMonths: 4,
-            monthlySalary: 4500,
+            durationMonths: 2,
+            monthlySalary: 20000,
+            laborBurdenPct: 0,
+            isDirectSiteCost: true,
+            hasFormalPayroll: true,
+          },
+          {
+            id: 'gad-staff-5',
+            role: 'Topógrafo y Brigada de Campo',
+            quantity: 1,
+            durationMonths: 2,
+            monthlySalary: 14000,
+            laborBurdenPct: 0,
+            isDirectSiteCost: true,
+            hasFormalPayroll: false,
+          },
+          {
+            id: 'gad-staff-6',
+            role: 'Cadista y Modelador BIM',
+            quantity: 1,
+            durationMonths: 2,
+            monthlySalary: 10000,
             laborBurdenPct: 0,
             isDirectSiteCost: true,
             hasFormalPayroll: false,
@@ -151,21 +199,21 @@ export function SoloModeView({
             id: 'gad-cost-2',
             concept: 'Alquiler camioneta 4x4 + combustible y mantenimiento de ruta',
             category: 'viaticos',
-            amount: 24000,
+            amount: 12000,
             isTaxDeductible: true,
           },
           {
             id: 'gad-cost-3',
             concept: 'Hospedaje y viáticos en municipios de Potosí',
             category: 'viaticos',
-            amount: 15000,
+            amount: 8000,
             isTaxDeductible: false,
           },
           {
             id: 'gad-cost-4',
             concept: 'Impresión de planos, ploteos y carpetas ejecutivas de entrega',
             category: 'materiales',
-            amount: 5000,
+            amount: 4000,
             isTaxDeductible: true,
           },
         ],
@@ -247,6 +295,12 @@ export function SoloModeView({
     }));
   };
 
+  const validMonths = Math.max(1, durationMonths);
+  const totalPersonnelCost = result.staffing.totalPersonnelCost;
+  const personnelMonthlyCost = totalPersonnelCost / validMonths;
+  const netProfitMonthly = result.totalNetProfitPool / validMonths;
+  const netProfitDaily = result.totalNetProfitPool / (validMonths * 22);
+
   return (
     <div className={styles.container}>
       {/* TOP BAR */}
@@ -264,7 +318,7 @@ export function SoloModeView({
             type="button"
             className={styles.templateBtn}
             onClick={handleLoadGadPotosiTemplate}
-            title="Cargar presupuesto de referencia GAD Potosí (450.000 Bs)"
+            title="Cargar presupuesto de referencia GAD Potosí (450.000 Bs · 2 Meses · Personal 248.000 Bs)"
           >
             <span>📋 Cargar Plantilla GAD Potosí (450.000 Bs)</span>
           </button>
@@ -284,48 +338,88 @@ export function SoloModeView({
       <main className={styles.content}>
         {/* CONTRACT HERO */}
         <section className={styles.contractHero}>
-          <div className={styles.heroInputGroup}>
-            <label className={styles.heroLabel}>Monto Bruto del Contrato / Pliego Licitado</label>
-            <div className={styles.heroInputWrapper}>
-              <span className={styles.heroCurrency}>{currency}</span>
-              <input
-                type="number"
-                className={styles.heroInput}
-                value={input.contractGrossAmount || ''}
-                placeholder="450000"
-                onChange={(e) =>
-                  setInput((prev) => ({
-                    ...prev,
-                    contractGrossAmount: parseFloat(e.target.value) || 0,
-                  }))
-                }
-              />
-            </div>
-          </div>
-
-          <div className={styles.heroMeta}>
-            <div className={styles.heroMetaBox}>
-              <span className={styles.heroMetaLabel}>Plazo Estimado</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <div className={styles.heroInputsRow}>
+            {/* Monto Bruto */}
+            <div className={styles.heroInputGroup}>
+              <label className={styles.heroLabel}>Monto Bruto del Contrato / Pliego Licitado</label>
+              <div className={styles.heroInputWrapper}>
+                <span className={styles.heroCurrency}>{currency}</span>
                 <input
                   type="number"
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#f8fafc',
-                    fontSize: '1.15rem',
-                    fontWeight: 800,
-                    width: '60px',
-                  }}
-                  value={durationMonths}
-                  onChange={(e) => setDurationMonths(Math.max(1, parseInt(e.target.value) || 1))}
+                  className={styles.heroInput}
+                  value={input.contractGrossAmount || ''}
+                  placeholder="450000"
+                  onChange={(e) =>
+                    setInput((prev) => ({
+                      ...prev,
+                      contractGrossAmount: parseFloat(e.target.value) || 0,
+                    }))
+                  }
                 />
-                <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>meses</span>
               </div>
             </div>
 
+            {/* Duración Total */}
+            <div className={styles.heroInputGroup}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className={styles.heroLabel}>Duración Total del Contrato</label>
+                <button
+                  type="button"
+                  onClick={handleSyncStaffDuration}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#38bdf8',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0,
+                    fontWeight: 700,
+                  }}
+                  title="Sincronizar todos los cargos a los meses del contrato"
+                >
+                  ⚡ Aplicar {durationMonths}m a todo el personal
+                </button>
+              </div>
+              <div className={styles.heroInputWrapper}>
+                <input
+                  type="number"
+                  min="1"
+                  max="48"
+                  className={styles.heroInput}
+                  value={durationMonths}
+                  onChange={(e) => handleDurationChange(Math.max(1, parseInt(e.target.value) || 1))}
+                />
+                <span style={{ color: '#38bdf8', fontSize: '1.15rem', fontWeight: 800 }}>meses</span>
+              </div>
+            </div>
+          </div>
+
+          {/* METRIC GRID */}
+          <div className={styles.heroMetaGrid}>
             <div className={styles.heroMetaBox}>
-              <span className={styles.heroMetaLabel}>Utilidad Neta</span>
+              <span className={styles.heroMetaLabel}>Personal / Mes</span>
+              <span className={styles.heroMetaValue} style={{ color: '#38bdf8' }}>
+                {fmt(personnelMonthlyCost)}/mes
+              </span>
+            </div>
+
+            <div className={styles.heroMetaBox}>
+              <span className={styles.heroMetaLabel}>Utilidad Neta / Mes</span>
+              <span className={styles.heroMetaValue} style={{ color: '#34d399' }}>
+                {fmt(netProfitMonthly)}/mes
+              </span>
+            </div>
+
+            <div className={styles.heroMetaBox}>
+              <span className={styles.heroMetaLabel}>Utilidad Neta / Día</span>
+              <span className={styles.heroMetaValue} style={{ color: '#fbbf24' }}>
+                {fmt(netProfitDaily)}/día
+              </span>
+            </div>
+
+            <div className={styles.heroMetaBox}>
+              <span className={styles.heroMetaLabel}>Utilidad Neta Total</span>
               <span className={styles.heroMetaValue}>
                 {fmt(result.totalNetProfitPool)} ({result.summaryMetrics.effectiveTakeRates.teamNetProfitPct.toFixed(1)}%)
               </span>
@@ -343,12 +437,14 @@ export function SoloModeView({
               <div>
                 <h3 className={styles.blockTitle}>Bloque 1: Personal y Equipo Técnico</h3>
                 <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                  {input.staffing.assignments.length} asignaciones · Sueldos y cargas laborales
+                  {input.staffing.assignments.length} asignaciones · Sueldos y duración por rol
                 </span>
               </div>
             </div>
             <div className={styles.blockSummary}>
-              <span className={styles.blockTotal}>-{fmt(result.staffing.totalPersonnelCost)}</span>
+              <span className={styles.blockTotal}>
+                -{fmt(totalPersonnelCost)} ({fmt(personnelMonthlyCost)}/mes)
+              </span>
               <span className={styles.blockToggleIcon}>{openBlocks.personal ? '▲' : '▼'}</span>
             </div>
           </div>
@@ -390,12 +486,31 @@ export function SoloModeView({
                           />
                         </td>
                         <td>
-                          <input
-                            type="number"
-                            className={styles.tableInput}
-                            value={staff.durationMonths}
-                            onChange={(e) => handleUpdateStaff(staff.id, { durationMonths: parseInt(e.target.value) || 1 })}
-                          />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <input
+                              type="number"
+                              className={styles.tableInput}
+                              value={staff.durationMonths}
+                              min="1"
+                              max={durationMonths}
+                              onChange={(e) =>
+                                handleUpdateStaff(staff.id, {
+                                  durationMonths: Math.max(1, parseInt(e.target.value) || 1),
+                                })
+                              }
+                              style={{ width: '60px' }}
+                            />
+                            <span
+                              style={{
+                                fontSize: '0.72rem',
+                                color: staff.durationMonths > durationMonths ? '#f87171' : '#94a3b8',
+                                fontWeight: 600,
+                              }}
+                              title={`Tope de duración del contrato: ${durationMonths} meses`}
+                            >
+                              /{durationMonths}m
+                            </span>
+                          </div>
                         </td>
                         <td>
                           <input
@@ -441,6 +556,23 @@ export function SoloModeView({
               <div className={styles.addBtnRow}>
                 <button type="button" className={styles.addRowBtn} onClick={handleAddStaff}>
                   + Agregar Cargo de Personal
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    border: '1px solid #6366f1',
+                    color: '#c7d2fe',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={handleSyncStaffDuration}
+                  title="Sincronizar la duración de todos los cargos con los meses del contrato"
+                >
+                  🔄 Sincronizar personal a {durationMonths} meses
                 </button>
               </div>
             </div>
@@ -827,21 +959,24 @@ export function SoloModeView({
       <footer className={styles.stickyFooter}>
         <div className={styles.footerMetrics}>
           <div className={styles.metricItem}>
-            <span className={styles.metricLabel}>Total Contrato Bruto</span>
+            <span className={styles.metricLabel}>Total Contrato ({durationMonths}m)</span>
             <span className={styles.metricVal}>{fmt(input.contractGrossAmount)}</span>
           </div>
 
           <div className={styles.metricItem}>
-            <span className={styles.metricLabel}>Total Costos Estimados</span>
-            <span className={styles.metricVal} style={{ color: '#f87171' }}>
-              -{fmt(result.totalNonRecoverableExpenses)}
+            <span className={styles.metricLabel}>Personal Mensual</span>
+            <span className={styles.metricVal} style={{ color: '#38bdf8' }}>
+              {fmt(personnelMonthlyCost)}/mes
             </span>
           </div>
 
           <div className={styles.metricItem}>
-            <span className={styles.metricLabel}>Utilidad Neta de la Empresa</span>
+            <span className={styles.metricLabel}>Utilidad Neta Total</span>
             <span className={styles.metricValNet}>
-              {fmt(result.totalNetProfitPool)} ({result.summaryMetrics.effectiveTakeRates.teamNetProfitPct.toFixed(1)}%)
+              {fmt(result.totalNetProfitPool)}
+            </span>
+            <span style={{ fontSize: '0.78rem', color: '#34d399', fontWeight: 700 }}>
+              {fmt(netProfitMonthly)}/mes · {fmt(netProfitDaily)}/día
             </span>
           </div>
         </div>

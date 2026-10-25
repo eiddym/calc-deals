@@ -29,10 +29,22 @@ export function PrestanombreModeView({
 }: PrestanombreModeViewProps) {
   // Estado para la calculadora inversa "Quiero quedar con X% neto"
   const [targetTeamNetMarginPct, setTargetTeamNetMarginPct] = useState<number>(30);
+  const [durationMonths, setDurationMonths] = useState<number>(2);
 
   // Fee de la empresa titular
   const titularFeePct = input.titularCompany.value || 8;
   const titularFeeAmount = result.titularCompany.amount || 0;
+
+  // Métricas mensualizadas
+  const validMonths = Math.max(1, durationMonths);
+  const titularNetTotal = titularFeeAmount;
+  const titularNetMonthly = titularNetTotal / validMonths;
+
+  const teamNetTotal =
+    result.titularCompany.varianceAnalysis.ifTitularAbsorbsTaxes.teamNetGain ||
+    result.totalNetProfitPool;
+  const teamNetMonthly = teamNetTotal / validMonths;
+  const teamNetDaily = teamNetTotal / (validMonths * 22);
 
   // Calculadora inversa: calcular fee que se le puede ofrecer al titular para que el ejecutor quede con targetTeamNetMarginPct
   const handleCalculateInverseFee = (targetMargin: number) => {
@@ -103,7 +115,7 @@ export function PrestanombreModeView({
                 <span>🏢 Titular (Firma & NIT)</span>
               </div>
               <span className={`${styles.cardPill} ${styles.cardPillTitular}`}>
-                {titularFeePct}% del bruto
+                {fmt(titularNetMonthly)}/mes ({durationMonths}m)
               </span>
             </div>
 
@@ -112,6 +124,12 @@ export function PrestanombreModeView({
             </div>
 
             <div className={styles.cardMetaList}>
+              <div className={styles.metaRow}>
+                <span>Neto mensual titular:</span>
+                <strong style={{ color: '#c7d2fe', fontSize: '1rem' }}>
+                  {fmt(titularNetMonthly)}/mes
+                </strong>
+              </div>
               <div className={styles.metaRow}>
                 <span>Impuestos (IVA/IT/IUE):</span>
                 <strong>
@@ -146,18 +164,21 @@ export function PrestanombreModeView({
                 <span>👷 Equipo Ejecutor (Técnico / Obra)</span>
               </div>
               <span className={`${styles.cardPill} ${styles.cardPillEjecutor}`}>
-                {(result.titularCompany.varianceAnalysis.ifTitularAbsorbsTaxes.effectiveMargin || 0).toFixed(1)}% margen
+                {fmt(teamNetMonthly)}/mes ({(result.titularCompany.varianceAnalysis.ifTitularAbsorbsTaxes.effectiveMargin || 0).toFixed(1)}%)
               </span>
             </div>
 
             <div className={`${styles.mainValue} ${styles.mainValueEjecutor}`}>
-              {fmt(
-                result.titularCompany.varianceAnalysis.ifTitularAbsorbsTaxes.teamNetGain ||
-                  result.totalNetProfitPool
-              )}
+              {fmt(teamNetTotal)}
             </div>
 
             <div className={styles.cardMetaList}>
+              <div className={styles.metaRow}>
+                <span>Neto por mes / día:</span>
+                <strong style={{ color: '#34d399', fontSize: '1rem' }}>
+                  {fmt(teamNetMonthly)}/mes · {fmt(teamNetDaily)}/día
+                </strong>
+              </div>
               <div className={styles.metaRow}>
                 <span>Líquido transferido:</span>
                 <strong>
@@ -225,10 +246,35 @@ export function PrestanombreModeView({
               </span>
             </div>
 
+            {/* Duración del Contrato */}
+            <div className={styles.inputCard}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className={styles.inputLabel}>2. Duración del Contrato</label>
+                <strong style={{ color: '#38bdf8', fontSize: '1.15rem' }}>
+                  {durationMonths} {durationMonths === 1 ? 'mes' : 'meses'}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem' }}>
+                <input
+                  type="number"
+                  min="1"
+                  max="48"
+                  className={styles.bigInput}
+                  value={durationMonths}
+                  onChange={(e) => setDurationMonths(Math.max(1, parseInt(e.target.value) || 1))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#94a3b8', marginTop: '0.35rem' }}>
+                <span>Días hábiles estimados:</span>
+                <span style={{ color: '#cbd5e1', fontWeight: 600 }}>{durationMonths * 22} días</span>
+              </div>
+            </div>
+
             {/* Fee del Prestanombre */}
             <div className={styles.inputCard}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label className={styles.inputLabel}>2. Fee de la Empresa Titular</label>
+                <label className={styles.inputLabel}>3. Fee de la Empresa Titular</label>
                 <strong style={{ color: '#818cf8', fontSize: '1.15rem' }}>{titularFeePct}%</strong>
               </div>
               <input
@@ -237,7 +283,7 @@ export function PrestanombreModeView({
                 max="25"
                 step="0.5"
                 value={titularFeePct}
-                style={{ width: '100%', accentColor: '#6366f1' }}
+                style={{ width: '100%', accentColor: '#6366f1', marginTop: '0.65rem' }}
                 onChange={(e) =>
                   setInput((prev) => ({
                     ...prev,
@@ -248,9 +294,9 @@ export function PrestanombreModeView({
                   }))
                 }
               />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: '#cbd5e1' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: '#cbd5e1', marginTop: '0.35rem' }}>
                 <span>Monto a cobrar:</span>
-                <strong>{fmt(titularFeeAmount)}</strong>
+                <strong style={{ color: '#818cf8' }}>{fmt(titularFeeAmount)}</strong>
               </div>
             </div>
           </div>

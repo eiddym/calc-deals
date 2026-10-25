@@ -31,9 +31,27 @@ export function ConsultoriaModeView({
   const [hasGestora, setHasGestora] = useState<boolean>(false);
   const [hasCajaSalud, setHasCajaSalud] = useState<boolean>(false);
   const [directExpenseAmount, setDirectExpenseAmount] = useState<number>(0);
-  const [durationMonths, setDurationMonths] = useState<number>(3);
+  
+  // Duración con selector de unidad flexible (días, semanas, meses)
+  type DurationUnit = 'meses' | 'semanas' | 'dias';
+  const [durationValue, setDurationValue] = useState<number>(3);
+  const [durationUnit, setDurationUnit] = useState<DurationUnit>('meses');
 
-  const totalDays = durationMonths * 22; // 22 días hábiles de trabajo al mes
+  // Conversión a días hábiles y meses equivalentes
+  let effectiveMonths = 1;
+  let effectiveDays = 22;
+
+  if (durationUnit === 'meses') {
+    effectiveMonths = Math.max(0.1, durationValue);
+    effectiveDays = Math.round(effectiveMonths * 22);
+  } else if (durationUnit === 'semanas') {
+    effectiveDays = Math.max(1, Math.round(durationValue * 5));
+    effectiveMonths = effectiveDays / 22;
+  } else {
+    // dias
+    effectiveDays = Math.max(1, durationValue);
+    effectiveMonths = effectiveDays / 22;
+  }
 
   // Deducción de Gestora y Caja si están activas
   const gestoraDeduction = hasGestora ? (input.contractGrossAmount * 14.42) / 100 : 0;
@@ -46,8 +64,8 @@ export function ConsultoriaModeView({
     baseNet - gestoraDeduction - cajaSaludDeduction - directExpenseAmount
   );
 
-  const netPerMonth = durationMonths > 0 ? finalCleanInHand / durationMonths : 0;
-  const netPerDay = totalDays > 0 ? finalCleanInHand / totalDays : 0;
+  const netPerMonth = effectiveMonths > 0 ? finalCleanInHand / effectiveMonths : 0;
+  const netPerDay = effectiveDays > 0 ? finalCleanInHand / effectiveDays : 0;
   const netMarginPct =
     input.contractGrossAmount > 0
       ? ((finalCleanInHand / input.contractGrossAmount) * 100).toFixed(1)
@@ -108,13 +126,19 @@ export function ConsultoriaModeView({
 
           <div className={styles.heroMainAmount}>{fmt(finalCleanInHand)}</div>
 
+          <div className={styles.heroTakeaway}>
+            Te quedan <strong>{fmt(finalCleanInHand)}</strong> → <span className={styles.highlightPerDay}>{fmt(netPerDay)}/día</span>
+          </div>
+
           <div className={styles.heroSubGrid}>
             <div className={styles.subItem}>
-              <span className={styles.subLabel}>Tarifa por Día</span>
+              <span className={styles.subLabel}>Tarifa Neta por Día</span>
               <span className={styles.subVal} style={{ color: '#2dd4bf' }}>
                 {fmt(netPerDay)}/día
               </span>
-              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>22 días hábiles/mes</span>
+              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                Para {effectiveDays} días de trabajo
+              </span>
             </div>
 
             <div className={styles.subItem}>
@@ -122,7 +146,9 @@ export function ConsultoriaModeView({
               <span className={styles.subVal} style={{ color: '#5eead4' }}>
                 {fmt(netPerMonth)}/mes
               </span>
-              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Durante {durationMonths} meses</span>
+              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                Equivale a {effectiveMonths >= 1 ? `${effectiveMonths.toFixed(1)} meses` : `${(effectiveMonths * 30).toFixed(0)} días`}
+              </span>
             </div>
 
             <div className={styles.subItem}>
@@ -142,7 +168,7 @@ export function ConsultoriaModeView({
           <div className={styles.fieldRow}>
             {/* Monto del Contrato */}
             <div className={styles.inputGroup}>
-              <label className={styles.inputLabel}>Monto Total del Contrato / Honorario Bruto</label>
+              <label className={styles.inputLabel}>1. Monto Total del Contrato / Honorario Bruto</label>
               <div className={styles.inputWrapper}>
                 <span className={styles.inputPrefix}>{currency}</span>
                 <input
@@ -162,16 +188,47 @@ export function ConsultoriaModeView({
 
             {/* Duración */}
             <div className={styles.inputGroup}>
-              <label className={styles.inputLabel}>Duración del Trabajo</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label className={styles.inputLabel}>2. Duración del Trabajo</label>
+                <div className={styles.unitToggleGroup}>
+                  <button
+                    type="button"
+                    className={`${styles.unitBtn} ${durationUnit === 'meses' ? styles.unitBtnActive : ''}`}
+                    onClick={() => setDurationUnit('meses')}
+                  >
+                    Meses
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.unitBtn} ${durationUnit === 'semanas' ? styles.unitBtnActive : ''}`}
+                    onClick={() => setDurationUnit('semanas')}
+                  >
+                    Semanas
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.unitBtn} ${durationUnit === 'dias' ? styles.unitBtnActive : ''}`}
+                    onClick={() => setDurationUnit('dias')}
+                  >
+                    Días
+                  </button>
+                </div>
+              </div>
               <div className={styles.inputWrapper}>
                 <input
                   type="number"
                   className={styles.textInput}
-                  value={durationMonths}
-                  onChange={(e) => setDurationMonths(Math.max(1, parseInt(e.target.value) || 1))}
+                  value={durationValue}
+                  min="1"
+                  onChange={(e) => setDurationValue(Math.max(1, parseFloat(e.target.value) || 1))}
                 />
-                <span style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 700 }}>meses</span>
+                <span style={{ color: '#5eead4', fontSize: '0.9rem', fontWeight: 700 }}>
+                  {durationUnit}
+                </span>
               </div>
+              <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                = {effectiveDays} días hábiles (aprox. {effectiveMonths.toFixed(1)} meses)
+              </span>
             </div>
           </div>
 

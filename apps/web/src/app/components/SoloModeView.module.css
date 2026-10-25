@@ -122,11 +122,16 @@
   background: #1e293b;
   border: 1.5px solid #334155;
   border-radius: 16px;
-  padding: 1.25rem 1.5rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.heroInputsRow {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 1.5rem;
-  align-items: center;
+  grid-template-columns: 1.4fr 0.8fr;
+  gap: 1.25rem;
 }
 
 .heroInputGroup {
@@ -136,7 +141,7 @@
 }
 
 .heroLabel {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: #94a3b8;
   text-transform: uppercase;
@@ -169,14 +174,13 @@
   outline: none;
 }
 
-.heroMeta {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
+.heroMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.85rem;
 }
 
 .heroMetaBox {
-  flex: 1;
   background: #0f172a;
   border: 1px solid #334155;
   border-radius: 10px;
@@ -187,16 +191,25 @@
 }
 
 .heroMetaLabel {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: #94a3b8;
   text-transform: uppercase;
   font-weight: 700;
 }
 
 .heroMetaValue {
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   font-weight: 800;
   color: #34d399;
+}
+
+@media (max-width: 860px) {
+  .heroInputsRow {
+    grid-template-columns: 1fr;
+  }
+  .heroMetaGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* SECTION ACCORDION / BLOCK */
