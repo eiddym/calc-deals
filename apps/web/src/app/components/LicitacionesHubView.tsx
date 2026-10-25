@@ -2,6 +2,7 @@
 
 import React from 'react';
 import styles from './LicitacionesHubView.module.css';
+import { useTheme } from '../context/ThemeContext';
 
 interface LicitacionesHubViewProps {
   onBackToHome: () => void;
@@ -20,6 +21,8 @@ export function LicitacionesHubView({
   currency,
   onCurrencyChange,
 }: LicitacionesHubViewProps) {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <div className={styles.hubContainer}>
       <div className={styles.hubContent}>
@@ -28,21 +31,32 @@ export function LicitacionesHubView({
           <button type="button" className={styles.backBtn} onClick={onBackToHome}>
             ← Volver al Inicio
           </button>
-          <div className={styles.currencySwitch}>
+          
+          <div className={styles.topRightGroup}>
             <button
               type="button"
-              className={`${styles.currencyBtn} ${currency === 'Bs' ? styles.currencyBtnActive : ''}`}
-              onClick={() => onCurrencyChange('Bs')}
+              className={styles.themeBtn}
+              onClick={toggleTheme}
+              title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
             >
-              Bs
+              {theme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro'}
             </button>
-            <button
-              type="button"
-              className={`${styles.currencyBtn} ${currency === 'USD' ? styles.currencyBtnActive : ''}`}
-              onClick={() => onCurrencyChange('USD')}
-            >
-              USD
-            </button>
+            <div className={styles.currencySwitch}>
+              <button
+                type="button"
+                className={`${styles.currencyBtn} ${currency === 'Bs' ? styles.currencyBtnActive : ''}`}
+                onClick={() => onCurrencyChange('Bs')}
+              >
+                Bs
+              </button>
+              <button
+                type="button"
+                className={`${styles.currencyBtn} ${currency === 'USD' ? styles.currencyBtnActive : ''}`}
+                onClick={() => onCurrencyChange('USD')}
+              >
+                USD
+              </button>
+            </div>
           </div>
         </div>
 

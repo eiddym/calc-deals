@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider } from './context/AuthContext';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -13,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'CALC Deals — Calculadora de Negociación y Reparto de Proyectos',
+  title: 'CALC Deals — Ingeniería Financiera para Contratos e Inversiones',
   description:
-    'Simulación de contratos, deducción de impuestos, boletas de garantía, retenciones del 5%, comisiones de adjudicación y margen real del proyectista.',
+    'Simulación y análisis de licitaciones, impuestos bolivianos (IVA, IT, IUE), boletas de garantía, prestanombres, consultorías e inversiones mineras/cooperativas.',
 };
 
 export default function RootLayout({
@@ -24,8 +26,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body style={{ background: '#0b111e', color: '#f1f5f9' }}>{children}</body>
+    <html lang="es" data-theme="light" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body>
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

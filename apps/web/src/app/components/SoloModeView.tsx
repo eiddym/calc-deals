@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import styles from './SoloModeView.module.css';
+import { useTheme } from '../context/ThemeContext';
 import {
   DealCalculationInput,
   DealCalculationResult,
@@ -32,6 +33,7 @@ export function SoloModeView({
   onCopySummary,
   isGeneratingPdf,
 }: SoloModeViewProps) {
+  const { theme, toggleTheme } = useTheme();
   const [durationMonths, setDurationMonths] = useState<number>(2);
 
   // Cambiar duración del contrato y limitar roles para no exceder la duración total
@@ -330,6 +332,14 @@ export function SoloModeView({
           </button>
           <button type="button" className={styles.backBtn} onClick={onCopySummary}>
             📋 WhatsApp
+          </button>
+          <button
+            type="button"
+            className={styles.themeBtn}
+            onClick={toggleTheme}
+            title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
           </button>
         </div>
       </header>

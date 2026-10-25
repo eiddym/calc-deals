@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import styles from './PrestanombreModeView.module.css';
+import { useTheme } from '../context/ThemeContext';
 import { DealCalculationInput, DealCalculationResult } from '@calc/shared';
 
 interface PrestanombreModeViewProps {
@@ -27,6 +28,7 @@ export function PrestanombreModeView({
   onCopySummary,
   isGeneratingPdf,
 }: PrestanombreModeViewProps) {
+  const { theme, toggleTheme } = useTheme();
   // Estado para la calculadora inversa "Quiero quedar con X% neto"
   const [targetTeamNetMarginPct, setTargetTeamNetMarginPct] = useState<number>(30);
   const [durationMonths, setDurationMonths] = useState<number>(2);
@@ -98,6 +100,14 @@ export function PrestanombreModeView({
           </button>
           <button type="button" className={styles.backBtn} onClick={onCopySummary}>
             📋 WhatsApp
+          </button>
+          <button
+            type="button"
+            className={styles.themeBtn}
+            onClick={toggleTheme}
+            title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
           </button>
         </div>
       </header>

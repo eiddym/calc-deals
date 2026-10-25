@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import styles from './ConsultoriaModeView.module.css';
+import { useTheme } from '../context/ThemeContext';
 import { DealCalculationInput, DealCalculationResult } from '@calc/shared';
 
 interface ConsultoriaModeViewProps {
@@ -27,6 +28,7 @@ export function ConsultoriaModeView({
   onCopySummary,
   isGeneratingPdf,
 }: ConsultoriaModeViewProps) {
+  const { theme, toggleTheme } = useTheme();
   // Gestora (14.42%) y Caja de Salud (10%) switches
   const [hasGestora, setHasGestora] = useState<boolean>(false);
   const [hasCajaSalud, setHasCajaSalud] = useState<boolean>(false);
@@ -110,6 +112,14 @@ export function ConsultoriaModeView({
           </button>
           <button type="button" className={styles.backBtn} onClick={onCopySummary}>
             📋 WhatsApp
+          </button>
+          <button
+            type="button"
+            className={styles.themeBtn}
+            onClick={toggleTheme}
+            title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
           </button>
         </div>
       </header>

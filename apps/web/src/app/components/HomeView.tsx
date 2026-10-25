@@ -2,362 +2,450 @@
 
 import React, { useState } from 'react';
 import styles from './HomeView.module.css';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 interface HomeViewProps {
   onSelectLicitaciones: () => void;
   onSelectInversion: () => void;
+  onSelectSoloWithPreset?: () => void;
+  onSelectConsultoriaWithPreset?: () => void;
+  onNavigateLogin?: () => void;
 }
 
-export function HomeView({ onSelectLicitaciones, onSelectInversion }: HomeViewProps) {
+export function HomeView({
+  onSelectLicitaciones,
+  onSelectInversion,
+  onSelectSoloWithPreset,
+  onSelectConsultoriaWithPreset,
+  onNavigateLogin,
+}: HomeViewProps) {
+  const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
   const [activeModal, setActiveModal] = useState<'licitaciones' | 'inversion' | null>(null);
+
+  const handleLoginClick = () => {
+    if (onNavigateLogin) {
+      onNavigateLogin();
+    } else {
+      window.location.href = '/login';
+    }
+  };
 
   return (
     <div className={styles.homeContainer}>
-      <div className={styles.homeContent}>
-        {/* BRAND HEADER */}
-        <header className={styles.brandHeader}>
-          <div className={styles.brandLogoRow}>
+      {/* TOP NAVIGATION BAR */}
+      <nav className={styles.topNav}>
+        <div className={styles.topNavInner}>
+          <div className={styles.brandGroup}>
             <div className={styles.brandLogoIcon}>
-              <svg
-                width="34"
-                height="34"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M3 3v18h18" />
-                <path d="m7 15 4-4 4 4 6-6" />
-                <path d="M17 9h4v4" />
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </svg>
             </div>
             <h1 className={styles.brandTitle}>
               CALC<span className={styles.brandTitleSpan}>Deals</span>
             </h1>
-          </div>
-          <p className={styles.brandSubtitle}>Ingeniería financiera pre-firma</p>
-        </header>
-
-        {/* TWO MAIN LARGE CARDS */}
-        <div className={styles.cardsList}>
-          {/* CARD 1: LICITACIONES / CONTRATOS */}
-          <div
-            className={styles.mainCard}
-            onClick={onSelectLicitaciones}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onSelectLicitaciones();
-              }
-            }}
-          >
-            <div className={styles.cardTopRow}>
-              <div className={styles.iconCircle}>
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                  <line x1="10" y1="9" x2="8" y2="9" />
-                </svg>
-              </div>
-              <div className={styles.cardTextContent}>
-                <h2 className={styles.cardTitle}>Licitaciones / Contratos</h2>
-                <p className={styles.cardDescription}>
-                  Calcula impuestos, boletas, prestanombre o consultoría menor. Monto del contrato → ganancia real.
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className={styles.helpBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveModal('licitaciones');
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 16v-4" />
-                <path d="M12 8h.01" />
-              </svg>
-              <span>¿Cómo funciona?</span>
-            </button>
+            <span className={styles.versionBadge}>v2.4 Pro Bolivia</span>
           </div>
 
-          {/* CARD 2: INVERSIÓN / EXTRA */}
-          <div
-            className={styles.mainCard}
-            onClick={onSelectInversion}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onSelectInversion();
-              }
-            }}
-          >
-            <div className={styles.cardTopRow}>
-              <div className={styles.iconCircle}>
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 3v18h18" />
-                  <rect x="7" y="10" width="3" height="8" rx="1" />
-                  <rect x="13" y="6" width="3" height="12" rx="1" />
-                  <rect x="19" y="3" width="3" height="15" rx="1" />
-                </svg>
-              </div>
-              <div className={styles.cardTextContent}>
-                <h2 className={styles.cardTitle}>Inversión / Extra</h2>
-                <p className={styles.cardDescription}>
-                  Cooperativa, inversionista y comunarios. Negocia en base al capital invertido y reparte utilidades.
-                </p>
-              </div>
-            </div>
-
+          <div className={styles.navActions}>
             <button
               type="button"
-              className={styles.helpBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveModal('inversion');
-              }}
+              className={styles.themeBtn}
+              onClick={toggleTheme}
+              title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 16v-4" />
-                <path d="M12 8h.01" />
-              </svg>
-              <span>¿Cómo funciona?</span>
+              {theme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro'}
             </button>
+
+            {user ? (
+              <div className={styles.userBadge}>
+                <span>👤</span>
+                <span className={styles.userName}>{user.name}</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 800 }}>
+                  ({user.authMethod.toUpperCase()})
+                </span>
+                <button
+                  type="button"
+                  className={styles.userLogoutBtn}
+                  onClick={logout}
+                  title="Cerrar sesión"
+                >
+                  Salir
+                </button>
+              </div>
+            ) : (
+              <button type="button" className={styles.loginBtn} onClick={handleLoginClick}>
+                <span>🔐</span>
+                <span>Iniciar Sesión</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* MAIN CONTENT AREA */}
+      <main className={styles.homeContent}>
+        {/* EXECUTIVE HERO */}
+        <section className={styles.heroSection}>
+          <div className={styles.heroEyebrow}>
+            <span>🏛️ Ingeniería Financiera Pre-Firma · DS 0181 SICOES & Ley 843</span>
+          </div>
+
+          <h2 className={styles.heroHeading}>
+            Que no se te escape ningún centavo{' '}
+            <span className={styles.heroHighlight}>antes de adjudicar un contrato.</span>
+          </h2>
+
+          <p className={styles.heroSubheading}>
+            Simula al centavo impuestos reales bolivianos (IVA, IT, IUE 25%), costo de personal técnico mensual, boletas de garantía, retención del 5% y reparto transparente entre socios o prestanombres.
+          </p>
+        </section>
+
+        {/* 4 HIGHLIGHT STRIP CARDS */}
+        <div className={styles.stripGrid}>
+          <div className={styles.stripCard}>
+            <div className={styles.stripCardIcon}>📊</div>
+            <h3 className={styles.stripCardTitle}>100% Ley 843 & SIN</h3>
+            <p className={styles.stripCardDesc}>
+              IVA 13% + IT 3% con crédito fiscal de compras y retención de IUE 25% anual sobre utilidad imponible.
+            </p>
+          </div>
+
+          <div className={styles.stripCard}>
+            <div className={styles.stripCardIcon}>🏢</div>
+            <h3 className={styles.stripCardTitle}>Varianza Prestanombre</h3>
+            <p className={styles.stripCardDesc}>
+              Negocia el fee (3% - 25%) y demuestra numéricamente si conviene que el titular absorba impuestos.
+            </p>
+          </div>
+
+          <div className={styles.stripCard}>
+            <div className={styles.stripCardIcon}>⏱️</div>
+            <h3 className={styles.stripCardTitle}>Tarifador por Día y Mes</h3>
+            <p className={styles.stripCardDesc}>
+              Para consultorías menores: te quedan X Bs en mano → Y Bs/día con Gestora y retención de ley opcional.
+            </p>
+          </div>
+
+          <div className={styles.stripCard}>
+            <div className={styles.stripCardIcon}>📑</div>
+            <h3 className={styles.stripCardTitle}>Dictamen en PDF</h3>
+            <p className={styles.stripCardDesc}>
+              Exporta el informe ejecutivo de distribución financiera listo para anexar al contrato o acuerdo de consorcio.
+            </p>
           </div>
         </div>
 
-        {/* SECTION: ASÍ FUNCIONA */}
+        {/* SECTION: TWO MAIN ACTION CARDS */}
+        <section>
+          <div className={styles.sectionHeader}>
+            <h3 className={styles.sectionTitle}>Elige tu escenario de negociación</h3>
+            <p className={styles.sectionSubtitle}>
+              Selecciona el modelo contractual que refleja la estructura real de tu operación.
+            </p>
+          </div>
+
+          <div className={styles.cardsList}>
+            {/* CARD 1: LICITACIONES / CONTRATOS */}
+            <div
+              className={styles.mainCard}
+              onClick={onSelectLicitaciones}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelectLicitaciones();
+                }
+              }}
+            >
+              <div className={styles.cardHeaderArea}>
+                <div className={styles.cardTopRow}>
+                  <div className={`${styles.iconCircle} ${styles.iconCircleLicitaciones}`}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                      <line x1="10" y1="9" x2="8" y2="9" />
+                    </svg>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.helpBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveModal('licitaciones');
+                    }}
+                  >
+                    <span>¿Cómo funciona?</span>
+                  </button>
+                </div>
+
+                <div>
+                  <h4 className={styles.cardTitle}>Licitaciones & Contratos</h4>
+                  <p className={styles.cardDescription}>
+                    Calcula impuestos formales, boletas bancarias, varianza de prestanombres o consultoría menor. Desde el monto adjudicado hasta la ganancia en mano.
+                  </p>
+                </div>
+
+                {/* Submodes Preview */}
+                <div className={styles.submodesList}>
+                  <div className={styles.submodeItem}>
+                    <span className={styles.submodeTag}>👥 Modo Solo:</span>
+                    <span className={styles.submodeDesc}>Planilla GAD (Personal/mes + Gastos + Boletas + IUE)</span>
+                  </div>
+                  <div className={styles.submodeItem}>
+                    <span className={styles.submodeTag}>🏢 Prestanombre:</span>
+                    <span className={styles.submodeDesc}>Titular (firma con NIT) vs Ejecutor (obra y equipo)</span>
+                  </div>
+                  <div className={styles.submodeItem}>
+                    <span className={styles.submodeTag}>👤 Consultoría Menor:</span>
+                    <span className={styles.submodeDesc}>Honorario bruto → Tarifa neta por día y por mes</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.cardFooterArea}>
+                <button
+                  type="button"
+                  className={styles.actionBtnPrimary}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectLicitaciones();
+                  }}
+                >
+                  <span>Entrar a Mesa de Licitaciones →</span>
+                </button>
+
+                {/* Quick Presets */}
+                <div className={styles.quickPresetsRow}>
+                  <span className={styles.quickPresetLabel}>Accesos Rápidos:</span>
+                  <button
+                    type="button"
+                    className={styles.presetBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onSelectSoloWithPreset) onSelectSoloWithPreset();
+                      else onSelectLicitaciones();
+                    }}
+                  >
+                    📋 GAD Potosí (450k Bs)
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.presetBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onSelectConsultoriaWithPreset) onSelectConsultoriaWithPreset();
+                      else onSelectLicitaciones();
+                    }}
+                  >
+                    ⚡ Consultoría (35k Bs)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* CARD 2: INVERSIÓN / COOPERATIVAS */}
+            <div
+              className={styles.mainCard}
+              onClick={onSelectInversion}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelectInversion();
+                }
+              }}
+            >
+              <div className={styles.cardHeaderArea}>
+                <div className={styles.cardTopRow}>
+                  <div className={`${styles.iconCircle} ${styles.iconCircleInversion}`}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M3 3v18h18" />
+                      <rect x="7" y="10" width="3" height="8" rx="1" />
+                      <rect x="13" y="6" width="3" height="12" rx="1" />
+                      <rect x="19" y="3" width="3" height="15" rx="1" />
+                    </svg>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.helpBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveModal('inversion');
+                    }}
+                  >
+                    <span>¿Cómo funciona?</span>
+                  </button>
+                </div>
+
+                <div>
+                  <h4 className={styles.cardTitle}>Inversión & Minería</h4>
+                  <p className={styles.cardDescription}>
+                    Especial para proyectos donde el factor central es el capital que aporta el inversionista, los meses de retorno (ROI) y el reparto con la cooperativa y comunarios.
+                  </p>
+                </div>
+
+                {/* Submodes Preview */}
+                <div className={styles.submodesList}>
+                  <div className={styles.submodeItem}>
+                    <span className={styles.submodeTag}>💎 Capital de Entrada:</span>
+                    <span className={styles.submodeDesc}>Inversión de capital + costos operativos del periodo</span>
+                  </div>
+                  <div className={styles.submodeItem}>
+                    <span className={styles.submodeTag}>📈 Retorno & Tiempo:</span>
+                    <span className={styles.submodeDesc}>Retorno esperado (%) y meses para amortizar inversión</span>
+                  </div>
+                  <div className={styles.submodeItem}>
+                    <span className={styles.submodeTag}>🤝 Reparto Tripartito:</span>
+                    <span className={styles.submodeDesc}>Inversionista + Cooperativa de base + Comunarios</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.cardFooterArea}>
+                <button
+                  type="button"
+                  className={`${styles.actionBtnPrimary} ${styles.actionBtnEmerald}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectInversion();
+                  }}
+                >
+                  <span>Entrar a Mesa de Inversión →</span>
+                </button>
+
+                <div className={styles.quickPresetsRow}>
+                  <span className={styles.quickPresetLabel}>Enfoque:</span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    Calculadora inversa de producción mínima para garantizar el retorno.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* METODOLOGÍA EN 3 PASOS */}
         <section className={styles.howSection}>
-          <div className={styles.howSectionHeader}>
-            <span className={styles.howSectionTitle}>Así funciona</span>
-            <div className={styles.howSectionLine} />
+          <div className={styles.sectionHeader}>
+            <h3 className={styles.sectionTitle}>Metodología de Negociación en 3 Pasos</h3>
+            <p className={styles.sectionSubtitle}>
+              Garantiza que ningún costo oculto o carga tributaria quede fuera de la mesa.
+            </p>
           </div>
 
           <div className={styles.stepsGrid}>
-            {/* Step 1 */}
             <div className={styles.stepCard}>
-              <div className={styles.stepNumberBadge}>1</div>
-              <div className={styles.stepIconContainer}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
+              <div className={styles.stepTopRow}>
+                <div className={styles.stepNumber}>1</div>
+                <div className={styles.stepIcon}>⚙️</div>
               </div>
-              <h3 className={styles.stepTitle}>Elige el tipo</h3>
+              <h4 className={styles.stepTitle}>Elige el Escenario</h4>
               <p className={styles.stepDescription}>
-                Selecciona el escenario que mejor se adapte a tu operación.
+                Selecciona si eres empresa adjudicataria única (Solo), ejecutor con NIT prestado, o consultor individual.
               </p>
             </div>
 
-            {/* Step 2 */}
             <div className={styles.stepCard}>
-              <div className={styles.stepNumberBadge}>2</div>
-              <div className={styles.stepIconContainer}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="4" y="2" width="16" height="20" rx="2" />
-                  <line x1="8" y1="6" x2="16" y2="6" />
-                  <line x1="16" y1="14" x2="16" y2="18" />
-                  <path d="M8 10h.01" />
-                  <path d="M12 10h.01" />
-                  <path d="M16 10h.01" />
-                  <path d="M8 14h.01" />
-                  <path d="M12 14h.01" />
-                  <path d="M8 18h.01" />
-                  <path d="M12 18h.01" />
-                </svg>
+              <div className={styles.stepTopRow}>
+                <div className={styles.stepNumber}>2</div>
+                <div className={styles.stepIcon}>⏱️</div>
               </div>
-              <h3 className={styles.stepTitle}>Ingresa el monto</h3>
+              <h4 className={styles.stepTitle}>Fija Duración y Costos</h4>
               <p className={styles.stepDescription}>
-                Ingresa el monto del negocio o inversión. El sistema hace el resto.
+                Carga meses de contrato, sueldos del personal, compras con factura, retenciones y boletas de garantía.
               </p>
             </div>
 
-            {/* Step 3 */}
             <div className={styles.stepCard}>
-              <div className={styles.stepNumberBadge}>3</div>
-              <div className={styles.stepIconContainer}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  <line x1="9" y1="10" x2="9.01" y2="10" />
-                  <line x1="12" y1="10" x2="12.01" y2="10" />
-                  <line x1="15" y1="10" x2="15.01" y2="10" />
-                </svg>
+              <div className={styles.stepTopRow}>
+                <div className={styles.stepNumber}>3</div>
+                <div className={styles.stepIcon}>📄</div>
               </div>
-              <h3 className={styles.stepTitle}>Negocia en tiempo real</h3>
+              <h4 className={styles.stepTitle}>Negocia y Emite Dictamen</h4>
               <p className={styles.stepDescription}>
-                Genera escenarios, compara y negocia con todas las partes.
+                Ajusta porcentajes de reparto en tiempo real y descarga el dictamen PDF para sustentar el acuerdo legal.
               </p>
             </div>
           </div>
         </section>
-      </div>
 
-      {/* POPUP / MODAL: ¿CÓMO FUNCIONA LICITACIONES? */}
+        {/* REGULATORY COMPLIANCE FOOTER STRIP */}
+        <section className={styles.regulatoryStrip}>
+          <div className={styles.regulatoryText}>
+            <span className={styles.regulatoryTitle}>Marco Normativo Integrado</span>
+            <span className={styles.regulatoryDesc}>
+              Parámetros tributarios y contractuales precalibrados conforme a la legislación fiscal vigente en Bolivia.
+            </span>
+          </div>
+
+          <div className={styles.regulatoryBadges}>
+            <span className={styles.regBadge}>Ley 843 (IVA 13% · IT 3%)</span>
+            <span className={styles.regBadge}>IUE 25% (D.S. 24051)</span>
+            <span className={styles.regBadge}>DS 0181 SICOES</span>
+            <span className={styles.regBadge}>Gestora 14.42%</span>
+            <span className={styles.regBadge}>Retención Ley 15.5%</span>
+          </div>
+        </section>
+      </main>
+
+      {/* HELP POPUP MODALS */}
       {activeModal === 'licitaciones' && (
-        <div className={styles.modalOverlay} onClick={() => setActiveModal(null)}>
-          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalBackdrop} onClick={() => setActiveModal(null)}>
+          <div className={styles.modalBox} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <div className={styles.modalTitleGroup}>
-                <div className={styles.iconCircle} style={{ width: 44, height: 44, minWidth: 44 }}>
-                  📄
-                </div>
-                <div>
-                  <h3 className={styles.modalTitle}>Licitaciones / Contratos</h3>
-                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>3 Sub-Modos Especializados</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className={styles.closeBtn}
-                onClick={() => setActiveModal(null)}
-                aria-label="Cerrar modal"
-              >
+              <h3 className={styles.modalTitle}>¿Cómo funciona Licitaciones / Contratos?</h3>
+              <button type="button" className={styles.closeModalBtn} onClick={() => setActiveModal(null)}>
                 ✕
               </button>
             </div>
-
             <div className={styles.modalBody}>
               <p>
-                Diseñado para proyectos formales, licitaciones públicas (SICOES) y contratos de consultoría. Cuenta con 3 sub-modos:
+                Este módulo está diseñado para <strong>adjudicaciones públicas (SICOES)</strong> o contratos privados llave en mano.
               </p>
-
-              <div className={styles.modalSubmodeCard}>
-                <span className={styles.modalSubmodeTitle}>🏛️ 1. Solo (Empresa o Consultora Única)</span>
-                <p className={styles.modalSubmodeDesc}>
-                  Todo en un solo actor: impuestos (16%), previsión de IUE (25%), boletas de garantía, diezmo y costos de personal. Entrega una tarjeta clara de ganancia neta.
-                </p>
-              </div>
-
-              <div className={styles.modalSubmodeCard}>
-                <span className={styles.modalSubmodeTitle}>🤝 2. Con Prestanombre (Trato A-B)</span>
-                <p className={styles.modalSubmodeDesc}>
-                  Separación legal vs operativa: La empresa titular asume impuestos, boletas y su fee por el NIT. El equipo ejecutor cobra limpio. Permite simular quién absorbe los impuestos en la mesa.
-                </p>
-              </div>
-
-              <div className={styles.modalSubmodeCard}>
-                <span className={styles.modalSubmodeTitle}>👤 3. Consultoría Menor Individual</span>
-                <p className={styles.modalSubmodeDesc}>
-                  Para profesionales y técnicos independientes. Sin IUE, impuestos opcionales, con cálculo automático de cuánto ganas por día y por mes según la duración.
-                </p>
-              </div>
+              <p>
+                <strong>1. Modo Solo:</strong> Introduce el pliego (ej. 450.000 Bs) y desglosa el costo del personal técnico por mes (ej. 124.000 Bs/mes en 2 meses). El sistema deduce el crédito fiscal, primas de boletas y el IUE 25% anual.
+              </p>
+              <p>
+                <strong>2. Con Prestanombre:</strong> Si la empresa titular pone la firma y tú el trabajo técnico, analiza la varianza fiscal para definir si el fee que pide el titular (ej. 8%) cubre los impuestos o perjudica al equipo ejecutor.
+              </p>
+              <p>
+                <strong>3. Consultoría Menor:</strong> Para trabajos individuales de 1 a 6 meses. Te indica exactamente la tarifa neta por día y honorario mensual tras aportes de ley.
+              </p>
             </div>
-
-            <button
-              type="button"
-              className={styles.modalActionBtn}
-              onClick={() => {
-                setActiveModal(null);
-                onSelectLicitaciones();
-              }}
-            >
-              <span>Abrir Licitaciones / Contratos</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M5 12h14" />
-                <path d="m12 5 7 7-7 7" />
-              </svg>
-            </button>
           </div>
         </div>
       )}
 
-      {/* POPUP / MODAL: ¿CÓMO FUNCIONA INVERSIÓN / COOPERATIVA? */}
       {activeModal === 'inversion' && (
-        <div className={styles.modalOverlay} onClick={() => setActiveModal(null)}>
-          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalBackdrop} onClick={() => setActiveModal(null)}>
+          <div className={styles.modalBox} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <div className={styles.modalTitleGroup}>
-                <div className={styles.iconCircle} style={{ width: 44, height: 44, minWidth: 44 }}>
-                  📊
-                </div>
-                <div>
-                  <h3 className={styles.modalTitle}>Inversión / Extra</h3>
-                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cooperativa, Inversionista y Comunarios</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className={styles.closeBtn}
-                onClick={() => setActiveModal(null)}
-                aria-label="Cerrar modal"
-              >
+              <h3 className={styles.modalTitle}>¿Cómo funciona Inversión / Cooperativas?</h3>
+              <button type="button" className={styles.closeModalBtn} onClick={() => setActiveModal(null)}>
                 ✕
               </button>
             </div>
-
             <div className={styles.modalBody}>
               <p>
-                La negociación no parte del ingreso, sino del <strong>capital que pone el inversionista</strong>:
+                En lugar de partir de un contrato cerrado, este modo parte del <strong>capital que arriesga el inversionista</strong>.
               </p>
-
-              <div className={styles.modalSubmodeCard}>
-                <span className={styles.modalSubmodeTitle}>💰 1. Capital del Inversionista</span>
-                <p className={styles.modalSubmodeDesc}>
-                  El punto de partida de la mesa (ej. 350.000 Bs). Se definen el plazo de recuperación y la meta de ROI esperado.
-                </p>
-              </div>
-
-              <div className={styles.modalSubmodeCard}>
-                <span className={styles.modalSubmodeTitle}>⚙️ 2. Cobertura de Costos y Canon Comunal</span>
-                <p className={styles.modalSubmodeDesc}>
-                  Se descuentan insumos, combustible, explosivos, maquinaria y la regalía comunal antes de repartir el excedente.
-                </p>
-              </div>
-
-              <div className={styles.modalSubmodeCard}>
-                <span className={styles.modalSubmodeTitle}>⚖️ 3. Reparto Dual y Semáforo de Viabilidad</span>
-                <p className={styles.modalSubmodeDesc}>
-                  Mueve el reparto (70/30, 60/40, 50/50) en tiempo real para ver el payback en meses y verificar si el trato está en 🟢 Zona Verde para ambas partes.
-                </p>
-              </div>
+              <p>
+                <strong>1. Capital + Operación:</strong> Ingresas el monto invertido y los costos operativos estimados para arrancar el proyecto o paraje minero.
+              </p>
+              <p>
+                <strong>2. Retorno Deseado:</strong> Fijas la ganancia meta del inversionista (ej. 40%) y el plazo en meses.
+              </p>
+              <p>
+                <strong>3. Calculadora Inversa:</strong> El motor te calcula la producción o ingreso bruto mínimo mensual que la cooperativa debe generar para cumplir ese retorno antes de repartir utilidades entre socios y comunarios.
+              </p>
             </div>
-
-            <button
-              type="button"
-              className={styles.modalActionBtn}
-              onClick={() => {
-                setActiveModal(null);
-                onSelectInversion();
-              }}
-            >
-              <span>Abrir Inversión / Cooperativa</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M5 12h14" />
-                <path d="m12 5 7 7-7 7" />
-              </svg>
-            </button>
           </div>
         </div>
       )}

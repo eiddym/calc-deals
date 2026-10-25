@@ -13,6 +13,7 @@ import {
 import { DealCharts } from './DealCharts';
 import { generateDealPdf } from '../utils/pdfExport';
 import { HomeView } from './HomeView';
+import { LoginView } from './LoginView';
 import { LicitacionesHubView } from './LicitacionesHubView';
 import { SoloModeView } from './SoloModeView';
 import { PrestanombreModeView } from './PrestanombreModeView';
@@ -114,7 +115,7 @@ export function CalculatorView() {
 
   // Navegación de nivel superior (Home limpio blanco/crema vs Workspaces)
   const [currentView, setCurrentView] = useState<
-    'home' | 'licitaciones_hub' | 'licitacion_solo' | 'licitacion_prestanombre' | 'licitacion_consultoria' | 'inversion'
+    'home' | 'login' | 'licitaciones_hub' | 'licitacion_solo' | 'licitacion_prestanombre' | 'licitacion_consultoria' | 'inversion'
   >('home');
   // Submodos de Licitaciones: Solo | Con Prestanombre | Consultoría Menor
   const [licitacionSubMode, setLicitacionSubMode] = useState<'solo' | 'prestanombre' | 'consultoria'>('solo');
@@ -559,7 +560,17 @@ export function CalculatorView() {
     setActiveTab(tabSequence[nextIndex]);
   };
 
-  // 1. Home Principal (Blanco / Crema)
+  // 0. Página de Login (Local + OIDC)
+  if (currentView === 'login') {
+    return (
+      <LoginView
+        onBackToHome={() => setCurrentView('home')}
+        onSuccess={() => setCurrentView('home')}
+      />
+    );
+  }
+
+  // 1. Home Principal (Blanco / Crema Ejecutivo)
   if (currentView === 'home') {
     return (
       <HomeView
@@ -569,6 +580,17 @@ export function CalculatorView() {
         onSelectInversion={() => {
           setCurrentView('inversion');
           handleModeChange('COOPERATIVA_INVERSION');
+        }}
+        onSelectSoloWithPreset={() => {
+          handleLicitacionSubModeChange('solo');
+          setCurrentView('licitacion_solo');
+        }}
+        onSelectConsultoriaWithPreset={() => {
+          handleLicitacionSubModeChange('consultoria');
+          setCurrentView('licitacion_consultoria');
+        }}
+        onNavigateLogin={() => {
+          setCurrentView('login');
         }}
       />
     );

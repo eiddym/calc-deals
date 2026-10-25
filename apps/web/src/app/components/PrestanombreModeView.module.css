@@ -1,15 +1,16 @@
 .container {
   min-height: 100vh;
-  background-color: #0b1120;
-  color: #f8fafc;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   display: flex;
   flex-direction: column;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 .topBar {
-  background: #0f172a;
-  border-bottom: 1px solid #1e293b;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color);
   padding: 0.85rem 1.5rem;
   display: flex;
   align-items: center;
@@ -17,6 +18,7 @@
   position: sticky;
   top: 0;
   z-index: 40;
+  box-shadow: var(--nav-shadow);
 }
 
 .navGroup {
@@ -27,9 +29,9 @@
 }
 
 .backBtn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #93c5fd;
+  background: var(--bg-surface-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   font-size: 0.82rem;
   font-weight: 700;
   padding: 0.4rem 0.75rem;
@@ -39,17 +41,35 @@
 }
 
 .backBtn:hover {
-  background: rgba(37, 99, 235, 0.25);
-  color: #ffffff;
-  border-color: #3b82f6;
+  background: var(--primary-subtle);
+  color: var(--primary);
+  border-color: var(--primary-border);
+}
+
+.themeBtn {
+  background: var(--bg-surface-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.themeBtn:hover {
+  background: var(--primary-subtle);
+  color: var(--primary);
+  border-color: var(--primary-border);
 }
 
 .badge {
-  background: #1e3a8a;
-  color: #93c5fd;
-  border: 1px solid #3b82f6;
+  background: var(--indigo-subtle);
+  color: var(--indigo-accent);
+  border: 1px solid rgba(99, 102, 241, 0.35);
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 800;
   padding: 0.3rem 0.6rem;
   border-radius: 6px;
   text-transform: uppercase;
@@ -58,7 +78,7 @@
 .title {
   font-size: 1.15rem;
   font-weight: 800;
-  color: #f8fafc;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -93,19 +113,27 @@
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--card-shadow);
   position: relative;
   overflow: hidden;
 }
 
 .heroCardTitular {
-  background: linear-gradient(145deg, #1e1b4b 0%, #0f172a 100%);
+  background: linear-gradient(145deg, rgba(99, 102, 241, 0.08) 0%, var(--bg-surface) 100%);
   border: 2px solid #6366f1;
 }
 
 .heroCardEjecutor {
-  background: linear-gradient(145deg, #064e3b 0%, #0f172a 100%);
+  background: linear-gradient(145deg, rgba(16, 185, 129, 0.08) 0%, var(--bg-surface) 100%);
   border: 2px solid #10b981;
+}
+
+[data-theme="dark"] .heroCardTitular {
+  background: linear-gradient(145deg, #1e1b4b 0%, #0f172a 100%);
+}
+
+[data-theme="dark"] .heroCardEjecutor {
+  background: linear-gradient(145deg, #064e3b 0%, #0f172a 100%);
 }
 
 .cardTop {
@@ -125,10 +153,18 @@
 }
 
 .cardRoleTitular {
+  color: #4f46e5;
+}
+
+[data-theme="dark"] .cardRoleTitular {
   color: #a5b4fc;
 }
 
 .cardRoleEjecutor {
+  color: #059669;
+}
+
+[data-theme="dark"] .cardRoleEjecutor {
   color: #6ee7b7;
 }
 
@@ -140,15 +176,23 @@
 }
 
 .cardPillTitular {
-  background: rgba(99, 102, 241, 0.2);
-  color: #c7d2fe;
-  border: 1px solid rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.15);
+  color: #4f46e5;
+  border: 1px solid rgba(99, 102, 241, 0.35);
 }
 
 .cardPillEjecutor {
-  background: rgba(16, 185, 129, 0.2);
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+[data-theme="dark"] .cardPillTitular {
+  color: #c7d2fe;
+}
+
+[data-theme="dark"] .cardPillEjecutor {
   color: #a7f3d0;
-  border: 1px solid rgba(16, 185, 129, 0.4);
 }
 
 .mainValue {
@@ -158,10 +202,18 @@
 }
 
 .mainValueTitular {
+  color: #4f46e5;
+}
+
+[data-theme="dark"] .mainValueTitular {
   color: #c7d2fe;
 }
 
 .mainValueEjecutor {
+  color: #059669;
+}
+
+[data-theme="dark"] .mainValueEjecutor {
   color: #34d399;
 }
 
@@ -169,10 +221,10 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--border-color);
   padding-top: 0.75rem;
   font-size: 0.82rem;
-  color: #cbd5e1;
+  color: var(--text-secondary);
 }
 
 .metaRow {
@@ -183,8 +235,8 @@
 
 /* VARIANCE BANNER */
 .varianceBanner {
-  background: #1e293b;
-  border: 1px solid #f59e0b;
+  background: var(--amber-subtle);
+  border: 1px solid var(--amber-accent);
   border-radius: 12px;
   padding: 0.9rem 1.25rem;
   display: flex;
@@ -195,31 +247,32 @@
 
 .varianceText {
   font-size: 0.88rem;
-  color: #fde68a;
+  color: var(--text-primary);
 }
 
 .varianceValue {
   font-size: 1.15rem;
   font-weight: 800;
-  color: #fbbf24;
+  color: var(--amber-accent);
   white-space: nowrap;
 }
 
 /* NEGOTIATION DESK */
 .deskSection {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  box-shadow: var(--card-shadow);
 }
 
 .sectionTitle {
   font-size: 1.15rem;
   font-weight: 800;
-  color: #f1f5f9;
+  color: var(--text-primary);
   margin: 0;
   display: flex;
   align-items: center;
@@ -233,8 +286,8 @@
 }
 
 .inputCard {
-  background: #0f172a;
-  border: 1px solid #334155;
+  background: var(--bg-surface-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 1rem 1.2rem;
   display: flex;
@@ -245,26 +298,26 @@
 .inputLabel {
   font-size: 0.8rem;
   font-weight: 700;
-  color: #94a3b8;
+  color: var(--text-muted);
   text-transform: uppercase;
 }
 
 .bigInput {
-  background: #1e293b;
-  border: 2px solid #3b82f6;
+  background: var(--bg-input);
+  border: 2px solid var(--border-focus);
   border-radius: 8px;
   padding: 0.6rem 0.9rem;
   font-size: 1.35rem;
   font-weight: 800;
-  color: #f8fafc;
+  color: var(--text-primary);
   outline: none;
   width: 100%;
   box-sizing: border-box;
 }
 
 .inverseBox {
-  background: #172554;
-  border: 1.5px dashed #60a5fa;
+  background: var(--primary-subtle);
+  border: 1.5px dashed var(--primary);
   border-radius: 12px;
   padding: 1rem 1.25rem;
   display: flex;
@@ -275,7 +328,7 @@
 .inverseTitle {
   font-size: 0.85rem;
   font-weight: 800;
-  color: #bfdbfe;
+  color: var(--primary);
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -289,8 +342,8 @@
 }
 
 .matrixCard {
-  background: #0f172a;
-  border: 1px solid #334155;
+  background: var(--bg-surface-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 1.1rem;
   display: flex;
@@ -307,13 +360,13 @@
 .matrixCardTitle {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #f1f5f9;
+  color: var(--text-primary);
 }
 
 .toggleSwitch {
   display: flex;
-  background: #1e293b;
-  border: 1px solid #475569;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 2px;
 }
@@ -321,7 +374,7 @@
 .toggleBtn {
   border: none;
   background: transparent;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 700;
   padding: 0.35rem 0.75rem;
