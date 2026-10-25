@@ -1,0 +1,479 @@
+.container {
+  min-height: 100vh;
+  background-color: #0b1120;
+  color: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 90px; /* space for sticky bottom bar */
+}
+
+.topBar {
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  padding: 0.85rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.navGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.backBtn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #93c5fd;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.backBtn:hover {
+  background: rgba(37, 99, 235, 0.25);
+  color: #ffffff;
+  border-color: #3b82f6;
+}
+
+.badge {
+  background: #064e3b;
+  color: #34d399;
+  border: 1px solid #059669;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #f8fafc;
+  margin: 0;
+}
+
+.actionGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.templateBtn {
+  background: #047857;
+  color: #ffffff;
+  border: 1px solid #10b981;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.templateBtn:hover {
+  background: #059669;
+}
+
+.clearBtn {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.clearBtn:hover {
+  background: rgba(244, 63, 94, 0.25);
+  color: #ffffff;
+}
+
+/* MAIN CONTENT */
+.content {
+  max-width: 1180px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.75rem 1.25rem 2.5rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* CONTRACT HERO CARD */
+.contractHero {
+  background: #1e293b;
+  border: 1.5px solid #334155;
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.heroInputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.heroLabel {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.heroInputWrapper {
+  display: flex;
+  align-items: center;
+  background: #0f172a;
+  border: 2px solid #3b82f6;
+  border-radius: 12px;
+  padding: 0.5rem 1rem;
+}
+
+.heroCurrency {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #38bdf8;
+  margin-right: 0.5rem;
+}
+
+.heroInput {
+  background: transparent;
+  border: none;
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #f8fafc;
+  width: 100%;
+  outline: none;
+}
+
+.heroMeta {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.heroMetaBox {
+  flex: 1;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.heroMetaLabel {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.heroMetaValue {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #34d399;
+}
+
+/* SECTION ACCORDION / BLOCK */
+.costBlock {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.costBlock:hover {
+  border-color: #475569;
+}
+
+.blockHeader {
+  padding: 1rem 1.25rem;
+  background: rgba(15, 23, 42, 0.6);
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.blockTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.blockIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.blockTitle {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0;
+}
+
+.blockSummary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.blockTotal {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.blockToggleIcon {
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.blockBody {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* TABLES / ITEM LISTS */
+.itemTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.itemTable th {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  background: #0f172a;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #334155;
+}
+
+.itemTable td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.6);
+  color: #e2e8f0;
+}
+
+.tableInput {
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tableInput:focus {
+  border-color: #3b82f6;
+  outline: none;
+}
+
+.delBtn {
+  background: transparent;
+  border: none;
+  color: #f43f5e;
+  cursor: pointer;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+}
+
+.delBtn:hover {
+  background: rgba(244, 63, 94, 0.15);
+}
+
+.addBtnRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.addRowBtn {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px dashed #3b82f6;
+  color: #93c5fd;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.addRowBtn:hover {
+  background: rgba(59, 130, 246, 0.22);
+  color: #ffffff;
+}
+
+/* FORM FIELDS IN BLOCKS */
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.fieldCard {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fieldLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.fieldInputWrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fieldInput {
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  padding: 0.45rem 0.65rem;
+  color: #f8fafc;
+  font-size: 0.95rem;
+  font-weight: 700;
+  width: 100%;
+}
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* STICKY FOOTER BAR */
+.stickyFooter {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #0f172a;
+  border-top: 2px solid #3b82f6;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 50;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.footerMetrics {
+  display: flex;
+  align-items: center;
+  gap: 1.75rem;
+  flex-wrap: wrap;
+}
+
+.metricItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.metricLabel {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.04em;
+}
+
+.metricVal {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.metricValNet {
+  font-size: 1.45rem;
+  font-weight: 900;
+  color: #34d399;
+}
+
+.viewDetailBtn {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  font-size: 0.92rem;
+  font-weight: 700;
+  padding: 0.65rem 1.4rem;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  transition: all 0.15s ease;
+}
+
+.viewDetailBtn:hover {
+  background: #1d4ed8;
+}
+
+@media (max-width: 768px) {
+  .contractHero {
+    grid-template-columns: 1fr;
+  }
+  .stickyFooter {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.65rem 1rem;
+  }
+  .footerMetrics {
+    justify-content: space-between;
+  }
+}

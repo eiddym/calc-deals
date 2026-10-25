@@ -13,6 +13,10 @@ import {
 import { DealCharts } from './DealCharts';
 import { generateDealPdf } from '../utils/pdfExport';
 import { HomeView } from './HomeView';
+import { LicitacionesHubView } from './LicitacionesHubView';
+import { SoloModeView } from './SoloModeView';
+import { PrestanombreModeView } from './PrestanombreModeView';
+import { ConsultoriaModeView } from './ConsultoriaModeView';
 import styles from './Calculator.module.css';
 
 type CurrencyType = 'Bs' | 'USD';
@@ -109,7 +113,9 @@ export function CalculatorView() {
   });
 
   // Navegación de nivel superior (Home limpio blanco/crema vs Workspaces)
-  const [currentView, setCurrentView] = useState<'home' | 'licitaciones' | 'inversion'>('home');
+  const [currentView, setCurrentView] = useState<
+    'home' | 'licitaciones_hub' | 'licitacion_solo' | 'licitacion_prestanombre' | 'licitacion_consultoria' | 'inversion'
+  >('home');
   // Submodos de Licitaciones: Solo | Con Prestanombre | Consultoría Menor
   const [licitacionSubMode, setLicitacionSubMode] = useState<'solo' | 'prestanombre' | 'consultoria'>('solo');
 
@@ -553,18 +559,91 @@ export function CalculatorView() {
     setActiveTab(tabSequence[nextIndex]);
   };
 
-  // Si está en el Home de nivel superior, renderizar la interfaz limpia blanca/crema
+  // 1. Home Principal (Blanco / Crema)
   if (currentView === 'home') {
     return (
       <HomeView
         onSelectLicitaciones={() => {
-          setCurrentView('licitaciones');
-          handleLicitacionSubModeChange('solo');
+          setCurrentView('licitaciones_hub');
         }}
         onSelectInversion={() => {
           setCurrentView('inversion');
           handleModeChange('COOPERATIVA_INVERSION');
         }}
+      />
+    );
+  }
+
+  // 2. Sub-hub selector de Licitaciones / Contratos
+  if (currentView === 'licitaciones_hub') {
+    return (
+      <LicitacionesHubView
+        onBackToHome={() => setCurrentView('home')}
+        onSelectSolo={() => {
+          handleLicitacionSubModeChange('solo');
+          setCurrentView('licitacion_solo');
+        }}
+        onSelectPrestanombre={() => {
+          handleLicitacionSubModeChange('prestanombre');
+          setCurrentView('licitacion_prestanombre');
+        }}
+        onSelectConsultoria={() => {
+          handleLicitacionSubModeChange('consultoria');
+          setCurrentView('licitacion_consultoria');
+        }}
+        currency={currency}
+        onCurrencyChange={setCurrency}
+      />
+    );
+  }
+
+  // 3. Modo Solo (Estimación de Costos por Bloques - GAD Potosí)
+  if (currentView === 'licitacion_solo') {
+    return (
+      <SoloModeView
+        input={activeInput}
+        setInput={setInput}
+        result={result}
+        currency={currency}
+        fmt={fmt}
+        onBackToHub={() => setCurrentView('licitaciones_hub')}
+        onDownloadPdf={handleDownloadPdf}
+        onCopySummary={handleCopySummary}
+        isGeneratingPdf={isGeneratingPdf}
+      />
+    );
+  }
+
+  // 4. Modo Con Prestanombre (Trato A-B y Negociación de Fee)
+  if (currentView === 'licitacion_prestanombre') {
+    return (
+      <PrestanombreModeView
+        input={activeInput}
+        setInput={setInput}
+        result={result}
+        currency={currency}
+        fmt={fmt}
+        onBackToHub={() => setCurrentView('licitaciones_hub')}
+        onDownloadPdf={handleDownloadPdf}
+        onCopySummary={handleCopySummary}
+        isGeneratingPdf={isGeneratingPdf}
+      />
+    );
+  }
+
+  // 5. Modo Consultoría Menor (Individual - Neto Personal y por Día/Mes)
+  if (currentView === 'licitacion_consultoria') {
+    return (
+      <ConsultoriaModeView
+        input={activeInput}
+        setInput={setInput}
+        result={result}
+        currency={currency}
+        fmt={fmt}
+        onBackToHub={() => setCurrentView('licitaciones_hub')}
+        onDownloadPdf={handleDownloadPdf}
+        onCopySummary={handleCopySummary}
+        isGeneratingPdf={isGeneratingPdf}
       />
     );
   }
@@ -586,17 +665,11 @@ export function CalculatorView() {
               >
                 ← Inicio
               </button>
-              <span className={styles.brandBadge}>
-                {currentView === 'licitaciones' ? 'LICITACIONES' : 'INVERSIÓN'}
-              </span>
+              <span className={styles.brandBadge}>INVERSIÓN</span>
               <div>
-                <h1 className={styles.brandTitle}>
-                  {currentView === 'licitaciones' ? 'Licitaciones / Contratos' : 'Inversión / Extra'}
-                </h1>
+                <h1 className={styles.brandTitle}>Inversión / Extra</h1>
                 <p className={styles.brandSubtitle}>
-                  {currentView === 'licitaciones'
-                    ? 'Calcula impuestos, boletas, prestanombre o consultoría menor. Monto del contrato → ganancia real.'
-                    : 'Cooperativa, inversionista y comunarios. Negocia en base al capital invertido y reparte utilidades.'}
+                  Cooperativa, inversionista y comunarios. Negocia en base al capital invertido y reparte utilidades.
                 </p>
               </div>
             </div>
@@ -633,46 +706,6 @@ export function CalculatorView() {
               </div>
             </div>
           </div>
-
-          {/* SELECTOR DE SUB-MODOS CUANDO ESTÁ EN LICITACIONES */}
-          {currentView === 'licitaciones' && (
-            <div className={styles.modeSelectorContainer}>
-              <div className={styles.modeHeaderRow}>
-                <span className={styles.modeLabel}>Modo de Licitación / Contrato:</span>
-                <span className={styles.modeBadge}>
-                  {licitacionSubMode === 'solo' && 'Solo (Empresa / Consultora)'}
-                  {licitacionSubMode === 'prestanombre' && 'Con Prestanombre (Trato A-B)'}
-                  {licitacionSubMode === 'consultoria' && 'Consultoría Menor (Individual)'}
-                </span>
-              </div>
-              <div className={styles.modeGrid}>
-                <button
-                  type="button"
-                  className={`${styles.modeBtn} ${licitacionSubMode === 'solo' ? styles.modeBtnActive : ''}`}
-                  onClick={() => handleLicitacionSubModeChange('solo')}
-                >
-                  <span className={styles.modeBtnTitle}>🏛️ Solo</span>
-                  <span className={styles.modeBtnSubtitle}>Todo en un solo actor · Impuestos + Boletas</span>
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.modeBtn} ${licitacionSubMode === 'prestanombre' ? styles.modeBtnActive : ''}`}
-                  onClick={() => handleLicitacionSubModeChange('prestanombre')}
-                >
-                  <span className={styles.modeBtnTitle}>🤝 Con Prestanombre</span>
-                  <span className={styles.modeBtnSubtitle}>Legal (Titular) vs Operativa (Ejecutor)</span>
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.modeBtn} ${licitacionSubMode === 'consultoria' ? styles.modeBtnActive : ''}`}
-                  onClick={() => handleLicitacionSubModeChange('consultoria')}
-                >
-                  <span className={styles.modeBtnTitle}>👤 Consultoría Menor</span>
-                  <span className={styles.modeBtnSubtitle}>Individual · Sin IUE · Neto por día/mes</span>
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* BARRA FIJA DE 5 PESTAÑAS (NAV TABS: RESUMEN, NEGOCIACIÓN, COSTOS, REPARTO, DETALLE) */}
           <nav className={styles.navTabContainer} aria-label="Navegación principal">
